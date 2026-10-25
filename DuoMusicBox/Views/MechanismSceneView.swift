@@ -1,0 +1,602 @@
+import SwiftUI
+import SceneKit
+import UIKit
+
+/// Phase 2 机械主体 3D 视图（SceneKit），替代 Phase 1 的 Canvas 2.5D CylinderView / GearView。
+///
+/// 不变的约定（与 Phase 1 完全同源，杜绝第二套时间线）：
+/// - 滚筒旋转角只来自 PlaybackEngine.cylinderRotation（由 stepFloat 推导），
+///   本视图只把它换算成弧度赋给鼓体节点，不持有任何时钟。
+/// - 音钉落位与点按反解都走 MechanismMath 的同一组正/逆公式，与声音、编曲器共用同一份 Melody。
+/// - 齿轮/调速器角度是滚筒角的纯函数（MechanismMath，公式与 Phase 1 GearView 逐字对应）。
+/// - 音梳振动由 PlaybackEngine.lastStepTrigger（只读观察口）驱动，不回探音频调度。
+/// - 发条钥匙的转角来自 WindingControl 的手势回调（MusicBoxView 中转），储能读 springCharge，
+///   模型仍在 PlaybackEngine，本视图只呈现。
+///
+/// 布局不变量保持：本视图只占机械主体区（盒盖区仍是 SwiftUI 的木质横幅）；
+/// 场景内自上而下依次是音梳、滚筒、齿轮/发条，与 Phase 1 的上下关系一致。
+public struct MechanismSceneView: View {
+    public let melody: Melody
+    @ObservedObject public var playback: PlaybackEngine
+    public let rotationDegrees: Double
+    /// 当前步被触发的音高集合（梳齿高亮用，与 Phase 1 CylinderView 同语义）。
+    public let triggeredPitches: Set<Int>
+    public let springCharge: Double
+    /// 上发条钥匙的累计转角（度，来自 WindingControl 手势）。
+    public let windingKeyAngle: Double
+    public let isEditing: Bool
+    public var onToggleNote: ((Int, Int) -> Void)?
+
+    public init(melody: Melody,
+                playback: PlaybackEngine,
+                rotationDegrees: Double,
+                triggeredPitches: Set<Int>,
+                springCharge: Double,
+                windingKeyAngle: Double,
+                isEditing: Bool,
+                onToggleNote: ((Int, Int) -> Void)? = nil) {
+        self.melody = melody
+        self.playback = playback
+        self.rotationDegrees = rotationDegrees
+        self.triggeredPitches = triggeredPitches
+        self.springCharge = springCharge
+        self.windingKeyAngle = windingKeyAngle
+        self.isEditing = isEditing
+        self.onToggleNote = onToggleNote
+    }
+
+    public var body: some View {
+        MechanismSceneRepresentable(melody: melody,
+                                    playback: playback,
+                                    rotationDegrees: rotationDegrees,
+                                    triggeredPitches: triggeredPitches,
+                                    springCharge: springCharge,
+                                    windingKeyAngle: windingKeyAngle,
+                                    isEditing: isEditing,
+                                    onToggleNote: onToggleNote)
+    }
+}
+
+// MARK: - UIViewRepresentable 桥
+
+private struct MechanismSceneRepresentable: UIViewRepresentable {
+    var melody: Melody
+    var playback: PlaybackEngine
+    var rotationDegrees: Double
+    var triggeredPitches: Set<Int>
+    var springCharge: Double
+    var windingKeyAngle: Double
+    var isEditing: Bool
+    var onToggleNote: ((Int, Int) -> Void)?
+
+    func makeCoordinator() -> MechanismSceneCoordinator {
+        MechanismSceneCoordinator()
+    }
+
+    func makeUIView(context: Context) -> SCNView {
+        let view = SCNView(frame: .zero, options: nil)
+        view.antialiasingMode = .multisampling4X
+        view.backgroundColor = .clear
+        view.isOpaque = false
+        view.allowsCameraControl = false
+        context.coordinator.attach(to: view, playback: playback)
+        return view
+    }
+
+    func updateUIView(_ view: SCNView, context: Context) {
+        context.coordinator.update(melody: melody,
+                                   rotationDegrees: rotationDegrees,
+                                   triggeredPitches: triggeredPitches,
+                                   springCharge: springCharge,
+                                   windingKeyAngle: windingKeyAngle,
+                                   isEditing: isEditing,
+                                   onToggleNote: onToggleNote)
+    }
+
+    static func dismantleUIView(_ view: SCNView, coordinator: MechanismSceneCoordinator) {
+        coordinator.detach()
+    }
+}
+
+// MARK: - 场景协调器（建场 + 每帧状态应用）
+
+final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
+    private let scene = SCNScene()
+    private weak var sceneView: SCNView?
+    private weak var playback: PlaybackEngine?
+
+    // 动态节点
+    private let drumGroup = SCNNode()
+    private var drumMesh: SCNNode!
+    private let pinGroup = SCNNode()
+    private let ringGroup = SCNNode()
+    private var bigGearGroup: SCNNode!
+    private var smallGearGroup: SCNNode!
+    private var governorGroup: SCNNode!
+    private var keyGroup: SCNNode!
+    private var springHand: SCNNode!
+    private var teeth: [SCNNode] = []
+    private var toothBaseAngles: [Float] = []
+    private var toothMaterials: [SCNMaterial] = []
+
+    // 共享几何/材质（全场景各一份，节点只引用不复制）
+    private let pinGeometry = SCNSphere(radius: 0.048)
+    private let stepRingGeometry = SCNBox(width: CGFloat(MechanismMath.drumLength),
+                                          height: 0.02, length: 0.008, chamferRadius: 0)
+    private let columnRingGeometry = SCNTorus(ringRadius: CGFloat(MechanismMath.drumRadius) + 0.002,
+                                              pipeRadius: 0.005)
+    /// 编辑网格环（步环 + 列界环）共用的深色恒定光照材质：看起来像鼓面刻线，不随光照变化。
+    private let ringMaterial: SCNMaterial = {
+        let m = SCNMaterial()
+        m.lightingModel = .constant
+        m.diffuse.contents = UIColor(red: 0.16, green: 0.11, blue: 0.05, alpha: 1)
+        return m
+    }()
+
+    // 状态缓存（避免每帧重复建节点/改材质）
+    private var lastMelody: Melody?
+    private var lastStepCount = -1
+    private var lastTriggeredPitches: Set<Int> = []
+    private var lastTriggerTime: CFTimeInterval = -1
+    private var lastWindingAngle: Double = .nan
+    private var lastWindingChange: CFTimeInterval = 0
+    private var strikeTimes: [Int: TimeInterval] = [:]
+    private let strikeLock = NSLock()
+    private var editing = false
+    private var toggleHandler: ((Int, Int) -> Void)?
+
+    override init() {
+        super.init()
+        buildScene()
+    }
+
+    // MARK: 附着/分离
+
+    func attach(to view: SCNView, playback: PlaybackEngine) {
+        sceneView = view
+        self.playback = playback
+        view.scene = scene
+        view.delegate = self
+        view.isPlaying = false
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        view.addGestureRecognizer(tap)
+    }
+
+    func detach() {
+        sceneView?.delegate = nil
+        sceneView = nil
+    }
+
+    // MARK: 建场（一次性，几何与材质全部共享）
+
+    private func buildScene() {
+        let root = scene.rootNode
+        scene.lightingEnvironment.contents = ProceduralTextures.environment
+        scene.lightingEnvironment.intensity = 0.9
+
+        // —— 材质（色值与 Theme 一一对应，保证 2D/3D 同一视觉语言）——
+        let brass = pbrMaterial(color: (0.83, 0.65, 0.30), metalness: 0.9, roughness: 0.34)
+        let brassBright = pbrMaterial(color: (0.99, 0.87, 0.56), metalness: 1.0, roughness: 0.22)
+        let brassDark = pbrMaterial(color: (0.52, 0.38, 0.15), metalness: 0.9, roughness: 0.45)
+        let steel = pbrMaterial(color: (0.78, 0.80, 0.84), metalness: 0.95, roughness: 0.28)
+        let steelDark = pbrMaterial(color: (0.45, 0.47, 0.52), metalness: 0.9, roughness: 0.4)
+        let wood = SCNMaterial()
+        wood.lightingModel = .physicallyBased
+        wood.diffuse.contents = ProceduralTextures.walnut
+        wood.roughness.contents = NSNumber(value: 0.85)
+        wood.metalness.contents = NSNumber(value: 0.0)
+        pinGeometry.firstMaterial = brassBright
+
+        let drumY: Float = 0.25
+        let radius = Float(MechanismMath.drumRadius)
+        let length = Float(MechanismMath.drumLength)
+
+        // —— 灯光：环境光 + 主方向光（暖）+ 补方向光（冷），金属反射主要来自环境图 ——
+        let ambient = SCNNode()
+        ambient.light = SCNLight()
+        ambient.light?.type = .ambient
+        ambient.light?.color = UIColor(red: 0.40, green: 0.32, blue: 0.22, alpha: 1)
+        ambient.light?.intensity = 0.5
+        root.addChildNode(ambient)
+
+        let lookTarget = SCNNode()
+        lookTarget.position = SCNVector3(0, -0.2, 0)
+        root.addChildNode(lookTarget)
+
+        let key = SCNNode()
+        key.light = SCNLight()
+        key.light?.type = .directional
+        key.light?.color = UIColor(red: 1.0, green: 0.93, blue: 0.80, alpha: 1)
+        key.light?.intensity = 2.0
+        key.position = SCNVector3(4, 6, 5)
+        key.constraints = [SCNLookAtConstraint(target: lookTarget)]
+        root.addChildNode(key)
+
+        let fill = SCNNode()
+        fill.light = SCNLight()
+        fill.light?.type = .directional
+        fill.light?.color = UIColor(red: 0.72, green: 0.78, blue: 0.90, alpha: 1)
+        fill.light?.intensity = 0.5
+        fill.position = SCNVector3(-5, 2, 4)
+        fill.constraints = [SCNLookAtConstraint(target: lookTarget)]
+        root.addChildNode(fill)
+
+        // —— 相机 ——
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.camera?.fieldOfView = 40
+        cameraNode.position = SCNVector3(0, 0.55, 6.6)
+        cameraNode.constraints = [SCNLookAtConstraint(target: lookTarget)]
+        root.addChildNode(cameraNode)
+
+        // —— 盒体：胡桃木背板 + 底座 ——
+        let backPanel = SCNNode(geometry: SCNBox(width: 5.0, height: 4.4, length: 0.22, chamferRadius: 0.03))
+        backPanel.geometry?.firstMaterial = wood
+        backPanel.position = SCNVector3(0, -0.05, -1.1)
+        root.addChildNode(backPanel)
+
+        let plinth = SCNNode(geometry: SCNBox(width: 5.0, height: 0.28, length: 2.4, chamferRadius: 0.03))
+        plinth.geometry?.firstMaterial = wood
+        plinth.position = SCNVector3(0, -2.3, -0.15)
+        root.addChildNode(plinth)
+
+        // —— 机芯框架：左右黄铜端板 + 转轴 ——
+        for side in [-1, 1] {
+            let plate = SCNNode(geometry: SCNBox(width: 0.09, height: 1.7, length: 1.7, chamferRadius: 0.02))
+            plate.geometry?.firstMaterial = brassDark
+            plate.position = SCNVector3(Float(side) * 1.86, 0.1, 0)
+            root.addChildNode(plate)
+        }
+
+        // —— 滚筒组（整体绕 X 轴旋转，是唯一的"转子"）——
+        drumGroup.position = SCNVector3(0, drumY, 0)
+        root.addChildNode(drumGroup)
+
+        let drum = SCNNode(geometry: SCNCylinder(radius: CGFloat(radius), height: CGFloat(length)))
+        drum.geometry?.firstMaterial = brass
+        drum.eulerAngles.z = Float.pi / 2 // 圆柱默认轴向 Y，转到 X（横轴 = 音高）
+        drum.name = "drum"
+        drumGroup.addChildNode(drum)
+        drumMesh = drum
+
+        let axle = SCNNode(geometry: SCNCylinder(radius: 0.055, height: 3.9))
+        axle.geometry?.firstMaterial = steel
+        axle.eulerAngles.z = Float.pi / 2
+        drumGroup.addChildNode(axle)
+
+        // 鼓身两端压边环
+        let edgeRing = SCNTorus(ringRadius: CGFloat(radius) + 0.004, pipeRadius: 0.016)
+        edgeRing.firstMaterial = brassDark
+        for side in [-1, 1] {
+            let ring = SCNNode(geometry: edgeRing)
+            ring.eulerAngles.y = Float.pi / 2
+            ring.position = SCNVector3(Float(side) * (length / 2 - 0.03), 0, 0)
+            drumGroup.addChildNode(ring)
+        }
+
+        drumGroup.addChildNode(pinGroup)
+        drumGroup.addChildNode(ringGroup)
+        buildColumnRings()
+
+        // —— 音梳：基座横梁在滚筒前上方，8 齿与音高列严格对齐 ——
+        let combBase = SCNNode(geometry: SCNBox(width: 3.6, height: 0.17, length: 0.34, chamferRadius: 0.02))
+        combBase.geometry?.firstMaterial = steel
+        combBase.position = SCNVector3(0, 1.34, 0.86)
+        root.addChildNode(combBase)
+        for side in [-1, 1] {
+            let screw = SCNNode(geometry: SCNCylinder(radius: 0.035, height: 0.03))
+            screw.geometry?.firstMaterial = steelDark
+            screw.eulerAngles.x = Float.pi / 2
+            screw.position = SCNVector3(Float(side) * 1.55, 1.34, 1.045)
+            root.addChildNode(screw)
+        }
+
+        // 梳齿指向：齿根（1.27, 0.98）→ 齿尖目标为鼓面 38° 处，二者之差决定齿的俯角。
+        let tipY = Double(drumY) + 1.03 * sin(38.0 * Double.pi / 180)
+        let tipZ = 1.03 * cos(38.0 * Double.pi / 180)
+        let gamma = atan2(tipY - 1.27, -(tipZ - 0.98)) // 绕 X 的俯角，推导见 MechanismMath 注释
+        let colW = MechanismMath.drumLength / Double(Melody.pitchCount)
+        for p in 0..<Melody.pitchCount {
+            let toothLength = 0.47 - Double(p) * 0.017 // 低音齿长、高音齿短（真实音梳规律）
+            let toothMaterial = (steel.copy() as? SCNMaterial) ?? steel
+            let mesh = SCNNode(geometry: SCNBox(width: 0.17, height: 0.024,
+                                                length: CGFloat(toothLength), chamferRadius: 0.004))
+            mesh.geometry?.firstMaterial = toothMaterial
+            mesh.position = SCNVector3(0, 0, Float(-toothLength / 2)) // 几何挂在齿根之后，枢轴在齿根
+            let tooth = SCNNode()
+            tooth.position = SCNVector3(Float(-MechanismMath.drumLength / 2 + colW * (Double(p) + 0.5)),
+                                        1.27, 0.98)
+            tooth.eulerAngles.x = Float(gamma)
+            tooth.addChildNode(mesh)
+            root.addChildNode(tooth)
+            teeth.append(tooth)
+            toothBaseAngles.append(Float(gamma))
+            toothMaterials.append(toothMaterial)
+        }
+
+        // —— 齿轮组（滚筒下方，面向观者）——
+        bigGearGroup = makeGear(teeth: 12, outerRadius: 0.52, material: brass, hubMaterial: steel)
+        bigGearGroup.position = SCNVector3(-1.18, -1.32, 0.32)
+        root.addChildNode(bigGearGroup)
+
+        smallGearGroup = makeGear(teeth: 8, outerRadius: 0.37, material: brass, hubMaterial: steel)
+        smallGearGroup.position = SCNVector3(-0.469, -1.579, 0.32)
+        root.addChildNode(smallGearGroup)
+
+        // 调速器：两片交叉翼片（Phase 1 governor 的 3D 对应物）
+        let governor = SCNNode()
+        for i in 0..<2 {
+            let vane = SCNNode(geometry: SCNBox(width: 0.09, height: 0.4, length: 0.02, chamferRadius: 0.008))
+            vane.geometry?.firstMaterial = steel
+            vane.eulerAngles.z = Float(i) * Float.pi / 2
+            governor.addChildNode(vane)
+        }
+        let govHub = SCNNode(geometry: SCNCylinder(radius: 0.05, height: 0.16))
+        govHub.geometry?.firstMaterial = brassDark
+        govHub.eulerAngles.x = Float.pi / 2
+        governor.addChildNode(govHub)
+        governor.position = SCNVector3(1.45, -1.42, 0.32)
+        root.addChildNode(governor)
+        governorGroup = governor
+
+        // —— 发条：鼓身 + 量表指针 + 上链钥匙 ——
+        let barrel = SCNNode(geometry: SCNCylinder(radius: 0.44, height: 0.30))
+        barrel.geometry?.firstMaterial = brassDark
+        barrel.eulerAngles.x = Float.pi / 2
+        barrel.position = SCNVector3(0.72, -1.58, 0.32)
+        root.addChildNode(barrel)
+        let barrelRing = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.03))
+        barrelRing.geometry?.firstMaterial = brass
+        barrelRing.position = SCNVector3(0.72, -1.58, 0.48)
+        root.addChildNode(barrelRing)
+
+        let handMesh = SCNNode(geometry: SCNBox(width: 0.05, height: 0.34, length: 0.03, chamferRadius: 0.01))
+        handMesh.geometry?.firstMaterial = brassBright
+        handMesh.position = SCNVector3(0, 0.13, 0)
+        let hand = SCNNode()
+        hand.position = SCNVector3(0.72, -1.58, 0.50)
+        hand.addChildNode(handMesh)
+        root.addChildNode(hand)
+        springHand = hand
+
+        // 蝶形钥匙：中轴 + 立柱 + 双环握柄（与 WindingControl 的 2D 钥匙同造型）
+        let key = SCNNode()
+        let shaft = SCNNode(geometry: SCNCylinder(radius: 0.045, height: 0.30))
+        shaft.geometry?.firstMaterial = steel
+        shaft.eulerAngles.x = Float.pi / 2
+        key.addChildNode(shaft)
+        let stem = SCNNode(geometry: SCNBox(width: 0.06, height: 0.30, length: 0.05, chamferRadius: 0.01))
+        stem.geometry?.firstMaterial = brass
+        stem.position = SCNVector3(0, 0.10, 0.14)
+        key.addChildNode(stem)
+        for side in [-1, 1] {
+            let loop = SCNNode(geometry: SCNTorus(ringRadius: 0.115, pipeRadius: 0.028))
+            loop.geometry?.firstMaterial = brass
+            loop.position = SCNVector3(Float(side) * 0.115, 0.30, 0.14)
+            key.addChildNode(loop)
+        }
+        key.position = SCNVector3(0.72, -1.58, 0.62)
+        root.addChildNode(key)
+        keyGroup = key
+    }
+
+    /// 齿轮：梯形齿廓（与 GearView.GearShape 同一公式）拉伸成型 + 轴毂。
+    private func makeGear(teeth: Int, outerRadius: Double, material: SCNMaterial, hubMaterial: SCNMaterial) -> SCNNode {
+        let path = UIBezierPath()
+        let root = outerRadius * (1 - 0.15)
+        let stepsPerTooth = 4
+        let total = teeth * stepsPerTooth
+        for i in 0...total {
+            let idx = i % total
+            let phase = idx % stepsPerTooth
+            let r = (phase == 1 || phase == 2) ? outerRadius : root
+            let a = Double(idx) / Double(total) * 2 * Double.pi - Double.pi / 2
+            let p = CGPoint(x: r * cos(a), y: r * sin(a))
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        path.close()
+        let shape = SCNShape(path: path, extrusionDepth: 0.12)
+        shape.firstMaterial = material
+        let mesh = SCNNode(geometry: shape)
+        mesh.position = SCNVector3(0, 0, -0.06)
+        let hub = SCNNode(geometry: SCNCylinder(radius: CGFloat(outerRadius * 0.18), height: 0.2))
+        hub.geometry?.firstMaterial = hubMaterial
+        hub.eulerAngles.x = Float.pi / 2
+        let group = SCNNode()
+        group.addChildNode(mesh)
+        group.addChildNode(hub)
+        return group
+    }
+
+    /// 编曲模式的列界环（常驻 ringGroup，仅编辑时可见）。
+    private func buildColumnRings() {
+        columnRingGeometry.firstMaterial = ringMaterial
+        let colW = MechanismMath.drumLength / Double(Melody.pitchCount)
+        for c in 0...Melody.pitchCount {
+            let ring = SCNNode(geometry: columnRingGeometry)
+            ring.eulerAngles.y = Float.pi / 2
+            ring.position = SCNVector3(Float(-MechanismMath.drumLength / 2 + colW * Double(c)), 0, 0)
+            ringGroup.addChildNode(ring)
+        }
+    }
+
+    private func pbrMaterial(color: (Double, Double, Double), metalness: Double, roughness: Double) -> SCNMaterial {
+        let m = SCNMaterial()
+        m.lightingModel = .physicallyBased
+        m.diffuse.contents = UIColor(red: CGFloat(color.0), green: CGFloat(color.1),
+                                     blue: CGFloat(color.2), alpha: 1)
+        m.metalness.contents = NSNumber(value: metalness)
+        m.roughness.contents = NSNumber(value: roughness)
+        return m
+    }
+
+    // MARK: 状态应用（updateUIView 每次调用；全部是赋值，无每帧分配）
+
+    func update(melody: Melody, rotationDegrees: Double, triggeredPitches: Set<Int>,
+                springCharge: Double, windingKeyAngle: Double,
+                isEditing: Bool, onToggleNote: ((Int, Int) -> Void)?) {
+        editing = isEditing
+        toggleHandler = onToggleNote
+
+        drumGroup.eulerAngles.x = Float(MechanismMath.drumRotationRadians(rotationDegrees: rotationDegrees))
+        bigGearGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
+            clockwiseDegrees: MechanismMath.bigGearDegrees(cylinderRotation: rotationDegrees)))
+        smallGearGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
+            clockwiseDegrees: MechanismMath.smallGearDegrees(cylinderRotation: rotationDegrees)))
+        governorGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
+            clockwiseDegrees: MechanismMath.governorDegrees(cylinderRotation: rotationDegrees)))
+        keyGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(clockwiseDegrees: windingKeyAngle))
+        springHand.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
+            clockwiseDegrees: MechanismMath.springIndicatorDegrees(charge: springCharge)))
+
+        if melody != lastMelody {
+            rebuildPins(for: melody)
+            if melody.stepCount != lastStepCount {
+                rebuildStepRings(stepCount: melody.stepCount)
+                lastStepCount = melody.stepCount
+            }
+            lastMelody = melody
+        }
+        ringGroup.isHidden = !isEditing
+
+        if triggeredPitches != lastTriggeredPitches {
+            for (i, material) in toothMaterials.enumerated() {
+                material.emissive.contents = triggeredPitches.contains(i)
+                    ? UIColor(red: 0.45, green: 0.32, blue: 0.08, alpha: 1)
+                    : UIColor.black
+            }
+            lastTriggeredPitches = triggeredPitches
+        }
+
+        // 音梳振动触发：只读消费 PlaybackEngine 的触发快照；旋律对不上（编曲预览别的草稿）时忽略。
+        if let trigger = playback?.lastStepTrigger, trigger.time != lastTriggerTime {
+            lastTriggerTime = trigger.time
+            if playback?.melody.id == melody.id {
+                strikeLock.lock()
+                for pitch in trigger.pitchIndices { strikeTimes[pitch] = trigger.time }
+                strikeLock.unlock()
+            }
+        }
+
+        if windingKeyAngle != lastWindingAngle {
+            lastWindingAngle = windingKeyAngle
+            lastWindingChange = CACurrentMediaTime()
+        }
+        refreshPlayingState()
+    }
+
+    private func rebuildPins(for melody: Melody) {
+        for child in pinGroup.childNodes { child.removeFromParentNode() }
+        for event in melody.events {
+            let node = SCNNode(geometry: pinGeometry)
+            let pos = MechanismMath.pinLocalPosition(pitchIndex: event.pitchIndex,
+                                                     step: event.step,
+                                                     stepCount: melody.stepCount)
+            node.position = SCNVector3(Float(pos.x), Float(pos.y), Float(pos.z))
+            node.name = "pin:\(event.pitchIndex):\(event.step)"
+            pinGroup.addChildNode(node)
+        }
+    }
+
+    private func rebuildStepRings(stepCount: Int) {
+        for child in ringGroup.childNodes { child.removeFromParentNode() }
+        buildColumnRings()
+        stepRingGeometry.firstMaterial = ringMaterial
+        let radius = MechanismMath.drumRadius + 0.004
+        for s in 0..<stepCount {
+            let a = MechanismMath.pinAngleRadians(step: s, stepCount: stepCount)
+            let ring = SCNNode(geometry: stepRingGeometry)
+            ring.position = SCNVector3(0, Float(radius * sin(a)), Float(radius * cos(a)))
+            ring.eulerAngles.x = Float(-a)
+            ringGroup.addChildNode(ring)
+        }
+    }
+
+    // MARK: 渲染循环管理（空闲不跑 60fps）
+
+    /// 需要连续渲染的情形：播放中、梳齿还在振动、刚上过发条（0.5 秒内）。
+    /// 其余情形只补渲染一帧让最新状态上屏，随即停下——不留常开的渲染循环。
+    private func needsContinuousRendering() -> Bool {
+        if playback?.isPlaying == true { return true }
+        if CACurrentMediaTime() - lastWindingChange < 0.5 { return true }
+        strikeLock.lock()
+        let hasStrikes = !strikeTimes.isEmpty
+        strikeLock.unlock()
+        return hasStrikes
+    }
+
+    private func refreshPlayingState() {
+        guard let view = sceneView else { return }
+        if needsContinuousRendering() {
+            view.isPlaying = true
+        } else if !view.isPlaying {
+            view.isPlaying = true
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let view, !self.needsContinuousRendering() else { return }
+                view.isPlaying = false
+            }
+        }
+    }
+
+    // MARK: 渲染帧回调（梳齿振动是唯一需要逐帧更新的量）
+
+    func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        strikeLock.lock()
+        let strikes = strikeTimes
+        strikeLock.unlock()
+        for (pitch, start) in strikes {
+            guard teeth.indices.contains(pitch) else { continue }
+            let elapsed = time - start
+            if elapsed > MechanismMath.toothVibrationDuration {
+                teeth[pitch].eulerAngles.x = toothBaseAngles[pitch]
+                strikeLock.lock()
+                strikeTimes[pitch] = nil
+                strikeLock.unlock()
+            } else {
+                teeth[pitch].eulerAngles.x = toothBaseAngles[pitch]
+                    + Float(MechanismMath.toothOscillation(elapsed: elapsed))
+            }
+        }
+        if strikes.isEmpty, playback?.isPlaying != true,
+           CACurrentMediaTime() - lastWindingChange >= 0.5 {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.needsContinuousRendering() else { return }
+                self.sceneView?.isPlaying = false
+            }
+        }
+    }
+
+    // MARK: 点按编辑（与 CylinderView 同语义：命中即 toggle）
+
+    /// 命中音钉节点 → 直接用该钉的 (pitch, step)；
+    /// 命中鼓身 → 把世界命中点转回滚筒子坐标，用 MechanismMath 反解最近格。
+    /// 两条路径同为落位公式的逆运算，与编曲网格、CylinderView 的点按结果一致。
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard editing, let toggleHandler, let view = sceneView, gesture.state == .ended else { return }
+        let point = gesture.location(in: view)
+        let hits = view.hitTest(point, options: nil)
+        for hit in hits {
+            var node: SCNNode? = hit.node
+            while let current = node {
+                if let name = current.name, name.hasPrefix("pin:") {
+                    let parts = name.split(separator: ":")
+                    if parts.count == 3, let pitch = Int(parts[1]), let step = Int(parts[2]) {
+                        toggleHandler(pitch, step)
+                        return
+                    }
+                }
+                node = current.parent
+            }
+            if hit.node === drumMesh {
+                let local = drumGroup.convertPosition(hit.worldCoordinates, from: view.scene?.rootNode)
+                if let cell = MechanismMath.pitchAndStep(localX: Double(local.x),
+                                                         localY: Double(local.y),
+                                                         localZ: Double(local.z),
+                                                         stepCount: lastMelody?.stepCount ?? 16) {
+                    toggleHandler(cell.pitch, cell.step)
+                    return
+                }
+            }
+        }
+    }
+}
