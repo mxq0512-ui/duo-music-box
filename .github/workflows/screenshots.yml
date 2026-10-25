@@ -47,21 +47,26 @@ jobs:
           xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/02-listen.png"
           xcrun simctl terminate "$UDID" com.jacky.duomusicbox || true
           xcrun simctl launch "$UDID" com.jacky.duomusicbox SCREENSHOT_OPEN_COMPOSE
-          sleep 3
+          sleep 6
           xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/03-compose.png"
+          sleep 5
+          xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/04-compose-late.png"
+          find ~/Library/Developer/CoreSimulator/Devices/"$UDID"/data/Library/Logs -name 'DuoMusicBox*' -exec cp {} "$RUNNER_TEMP/shots/" \; 2>/dev/null || true
           ls -la "$RUNNER_TEMP/shots"
 
       - name: Publish screenshots to ci-screenshots branch
         run: |
           set -e
           cp "$RUNNER_TEMP"/shots/*.png /tmp/
+          cp "$RUNNER_TEMP"/shots/*.ips /tmp/ 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --orphan ci-screenshots
           git rm -rf . >/dev/null 2>&1 || true
-          cp /tmp/01-closed.png /tmp/02-listen.png /tmp/03-compose.png .
+          cp /tmp/01-closed.png /tmp/02-listen.png /tmp/03-compose.png /tmp/04-compose-late.png .
+          cp /tmp/*.ips . 2>/dev/null || true
           printf '# CI simulator screenshots\n\nLatest run: %s\n' "$(date -u +%FT%TZ)" > README.md
-          git add 01-closed.png 02-listen.png 03-compose.png README.md
+          git add .
           git commit -m "Simulator screenshots (run ${{ github.run_number }})"
           git push -f origin ci-screenshots
 
