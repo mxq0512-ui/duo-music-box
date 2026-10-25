@@ -157,7 +157,10 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         self.playback = playback
         view.scene = scene
         view.delegate = self
-        view.isPlaying = false
+        // 持续渲染：早期版本用「按需补一帧」省电，但在模拟器/截图与冷启动下
+        // 补帧可能赶在呈现前被关掉而整屏空白。八音盒是展示型单屏 App，
+        // 优先保证画面永远在屏，常开销可接受（见 Phase 2 交付报告修订）。
+        view.isPlaying = true
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         view.addGestureRecognizer(tap)
     }
@@ -526,16 +529,8 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     }
 
     private func refreshPlayingState() {
-        guard let view = sceneView else { return }
-        if needsContinuousRendering() {
-            view.isPlaying = true
-        } else if !view.isPlaying {
-            view.isPlaying = true
-            DispatchQueue.main.async { [weak self, weak view] in
-                guard let self, let view, !self.needsContinuousRendering() else { return }
-                view.isPlaying = false
-            }
-        }
+        // 与 attach 一致：保持常开渲染，不再做空闲关停（原因见 attach 注释）。
+        sceneView?.isPlaying = true
     }
 
     // MARK: 渲染帧回调（梳齿振动是唯一需要逐帧更新的量）
@@ -557,13 +552,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
                     + Float(MechanismMath.toothOscillation(elapsed: elapsed))
             }
         }
-        if strikes.isEmpty, playback?.isPlaying != true,
-           CACurrentMediaTime() - lastWindingChange >= 0.5 {
-            DispatchQueue.main.async { [weak self] in
-                guard let self, !self.needsContinuousRendering() else { return }
-                self.sceneView?.isPlaying = false
-            }
-        }
+        // 空闲关停已取消：渲染常开（原因见 attach 注释），此处只更新梳齿振动。
     }
 
     // MARK: 点按编辑（与 CylinderView 同语义：命中即 toggle）
