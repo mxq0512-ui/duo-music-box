@@ -117,7 +117,6 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private var drumMesh: SCNNode!
     private let pinGroup = SCNNode()
     private let ringGroup = SCNNode()
-    private var edgeRingNodes: [SCNNode] = []
     private var bigGearGroup: SCNNode!
     private var smallGearGroup: SCNNode!
     private var governorGroup: SCNNode!
@@ -150,12 +149,6 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private var lastWindingChange: CFTimeInterval = 0
     private var strikeTimes: [Int: TimeInterval] = [:]
     private let strikeLock = NSLock()
-
-    // 临时诊断开关（云端截图定位异常亮线用；无参数启动时恒为 false，诊断完即移除）
-    private let debugTopView = ProcessInfo.processInfo.arguments.contains("DBG_TOP")
-    private let debugHideDrum = ProcessInfo.processInfo.arguments.contains("DBG_HIDE_DRUM")
-    private let debugHideEdge = ProcessInfo.processInfo.arguments.contains("DBG_HIDE_EDGE")
-    private let debugHideRings = ProcessInfo.processInfo.arguments.contains("DBG_HIDE_RINGS")
     private var editing = false
     private var toggleHandler: ((Int, Int) -> Void)?
 
@@ -200,8 +193,6 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         view.addGestureRecognizer(tap)
         startParallaxMotion()
-        if debugHideDrum { drumGroup.isHidden = true }
-        if debugHideEdge { for n in edgeRingNodes { n.isHidden = true } }
     }
 
     func detach() {
@@ -396,15 +387,17 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         axle.eulerAngles.z = Float.pi / 2
         drumGroup.addChildNode(axle)
 
-        // 鼓身两端压边环
-        let edgeRing = SCNTorus(ringRadius: CGFloat(radius) + 0.004, pipeRadius: 0.016)
-        edgeRing.firstMaterial = brassDark
+        // 鼓身两端压边带：略凸出鼓面的短圆柱带（与上方刻线带同类几何）。
+        // 原实现用 SCNTorus 圆环面，但在云端截图中渲染成横贯画面的椭圆伪影
+        // （2026-10-26 诊断：隐藏该组节点后伪影消失），故改用绕鼓轴旋转对称的
+        // 圆柱带——不受鼓组旋转姿态影响，视觉意图（端部压边）不变。
+        let rimBand = SCNCylinder(radius: CGFloat(radius) + 0.006, height: 0.055)
+        rimBand.firstMaterial = brassDark
         for side in [-1, 1] {
-            let ring = SCNNode(geometry: edgeRing)
-            ring.eulerAngles.y = Float.pi / 2
-            ring.position = SCNVector3(Float(side) * (length / 2 - 0.03), 0, 0)
-            drumGroup.addChildNode(ring)
-            edgeRingNodes.append(ring)
+            let band = SCNNode(geometry: rimBand)
+            band.eulerAngles.z = Float.pi / 2
+            band.position = SCNVector3(Float(side) * (length / 2 - 0.05), 0, 0)
+            drumGroup.addChildNode(band)
         }
 
         drumGroup.addChildNode(pinGroup)
@@ -662,7 +655,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             }
             lastMelody = melody
         }
-        ringGroup.isHidden = !isEditing || debugHideRings
+        ringGroup.isHidden = !isEditing
 
         if triggeredPitches != lastTriggeredPitches {
             for (i, material) in toothMaterials.enumerated() {
@@ -793,12 +786,6 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     /// 帧率无关，且从后台切回时不会一帧跳到位。目标恒为 0（无姿态数据）时
     /// rig 停在原点、目标停在基准位 (0, −0.2, 0)，与视差功能加入前完全一致。
     private func applyParallax(atTime time: TimeInterval) {
-        if debugTopView {
-            // 诊断俯瞰位：相机抬高后探，从上方看清各部件的真实平面布局
-            cameraRig.position = SCNVector3(0, 3.8, -2.2)
-            lookTargetNode.position = SCNVector3(0, -0.2, 0)
-            return
-        }
         attitudeLock.lock()
         let pitchDelta = targetPitchDelta
         let rollDelta = targetRollDelta
