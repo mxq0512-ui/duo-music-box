@@ -149,6 +149,10 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private var lastWindingChange: CFTimeInterval = 0
     private var strikeTimes: [Int: TimeInterval] = [:]
     private let strikeLock = NSLock()
+
+    // 临时诊断开关（云端截图定位异常亮线用；无参数启动时恒为 false，诊断完即移除）
+    private let debugTopView = ProcessInfo.processInfo.arguments.contains("DBG_TOP")
+    private let debugHideDrum = ProcessInfo.processInfo.arguments.contains("DBG_HIDE_DRUM")
     private var editing = false
     private var toggleHandler: ((Int, Int) -> Void)?
 
@@ -193,6 +197,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         view.addGestureRecognizer(tap)
         startParallaxMotion()
+        if debugHideDrum { drumGroup.isHidden = true }
     }
 
     func detach() {
@@ -783,6 +788,12 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     /// 帧率无关，且从后台切回时不会一帧跳到位。目标恒为 0（无姿态数据）时
     /// rig 停在原点、目标停在基准位 (0, −0.2, 0)，与视差功能加入前完全一致。
     private func applyParallax(atTime time: TimeInterval) {
+        if debugTopView {
+            // 诊断俯瞰位：相机抬高后探，从上方看清各部件的真实平面布局
+            cameraRig.position = SCNVector3(0, 3.8, -2.2)
+            lookTargetNode.position = SCNVector3(0, -0.2, 0)
+            return
+        }
         attitudeLock.lock()
         let pitchDelta = targetPitchDelta
         let rollDelta = targetRollDelta
