@@ -164,6 +164,9 @@ public struct MusicBoxView: View {
                                    springCharge: playback.springCharge,
                                    windingKeyAngle: windingKeyAngle,
                                    isEditing: false)
+                    // SCNView（UIViewRepresentable）没有固有尺寸，在 ZStack 里会被压成 0，
+                    // 必须显式撑满（编曲模式是 VStack 直接子视图+固定高，所以不受影响）。
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(6)
             }
             .frame(height: 252)
