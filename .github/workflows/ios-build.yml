@@ -1,0 +1,53 @@
+name: iOS Build & Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and test on cloud Mac
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: List schemes
+        run: xcodebuild -project DuoMusicBox.xcodeproj -list
+
+      - name: Build (generic iOS Simulator destination)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project DuoMusicBox.xcodeproj \
+            -scheme DuoMusicBox \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            build 2>&1 | tee build.log
+
+      - name: Unit tests
+        run: |
+          set -o pipefail
+          SIMULATOR_NAME=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+( Pro( Max)?)?' | head -1)
+          echo "Using simulator: $SIMULATOR_NAME"
+          xcodebuild \
+            -project DuoMusicBox.xcodeproj \
+            -scheme DuoMusicBox \
+            -destination "platform=iOS Simulator,name=${SIMULATOR_NAME},OS=latest" \
+            -derivedDataPath build/DerivedData \
+            test 2>&1 | tee test.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build.log
+            test.log
+          if-no-files-found: ignore
