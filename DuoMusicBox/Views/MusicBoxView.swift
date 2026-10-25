@@ -18,7 +18,17 @@ public struct MusicBoxView: View {
     /// 上发条钥匙的累计转角（WindingControl 回调写入，3D 场景读取呈现，两边同一手势来源）。
     @State private var windingKeyAngle: Double = 0
 
-    public init() {}
+    public init() {
+        // 视觉 QA 钩子：CI 截图以启动参数直接进入打开态（跳过开盒动画），
+        // 无参数启动时行为与以往完全一致。
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("SCREENSHOT_OPEN_COMPOSE") {
+            _isOpen = State(initialValue: true)
+            _mode = State(initialValue: .compose)
+        } else if args.contains("SCREENSHOT_OPEN_LISTEN") {
+            _isOpen = State(initialValue: true)
+        }
+    }
 
     public enum Mode: String, CaseIterable {
         case listen, compose, library, gift
