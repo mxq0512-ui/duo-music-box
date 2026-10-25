@@ -7,7 +7,6 @@ on:
       - '.github/workflows/unzip.yml'
 permissions:
   contents: write
-  workflows: write
 jobs:
   unzip:
     runs-on: ubuntu-latest
@@ -18,8 +17,8 @@ jobs:
       - name: Extract zip and commit
         run: |
           if [ ! -f duo-music-box-contents.zip ]; then echo "No zip found"; exit 0; fi
-          unzip -o duo-music-box-contents.zip -d .
-          rm duo-music-box-contents.zip .github/workflows/unzip.yml
+          unzip -o duo-music-box-contents.zip -d . -x '.github/workflows/ios-build.yml'
+          rm duo-music-box-contents.zip
           git config user.name "mxq0512-ui"
           git config user.email "mxq0512-ui@users.noreply.github.com"
           git add -A
