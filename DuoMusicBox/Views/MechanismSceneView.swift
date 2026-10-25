@@ -16,6 +16,12 @@ import UIKit
 ///
 /// 布局不变量保持：本视图只占机械主体区（盒盖区仍是 SwiftUI 的木质横幅）；
 /// 场景内自上而下依次是音梳、滚筒、齿轮/发条，与 Phase 1 的上下关系一致。
+///
+/// 画面精修约定：投影来自 key 光（自动投影包围全场，投影开关在建场末尾统一设置）；
+/// 材质细节全部程序贴图（ProceduralTextures 的拉丝/径向/粗糙度图）；
+/// 相机 (0, 0.35, 5.3) / fov 47 是按面板宽高比（≥1.43）算过的满幅机位——
+/// 在 z=0 平面可见高约 4.61、内容（音梳顶 1.43 ~ 齿轮底 −1.84）上下各留约 0.66
+/// 余量（含视差最坏偏移）；改机位前先按此口径重算。
 public struct MechanismSceneView: View {
     public let melody: Melody
     @ObservedObject public var playback: PlaybackEngine
@@ -203,18 +209,42 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private func buildScene() {
         let root = scene.rootNode
         scene.lightingEnvironment.contents = ProceduralTextures.environment
-        scene.lightingEnvironment.intensity = 0.9
+        scene.lightingEnvironment.intensity = 1.05
 
         // —— 材质（色值与 Theme 一一对应，保证 2D/3D 同一视觉语言）——
-        let brass = pbrMaterial(color: (0.83, 0.65, 0.30), metalness: 0.9, roughness: 0.34)
+        let brass = pbrMaterial(color: (0.83, 0.65, 0.30), metalness: 1.0, roughness: 0.30)
         let brassBright = pbrMaterial(color: (0.99, 0.87, 0.56), metalness: 1.0, roughness: 0.22)
         let brassDark = pbrMaterial(color: (0.52, 0.38, 0.15), metalness: 0.9, roughness: 0.45)
-        let steel = pbrMaterial(color: (0.78, 0.80, 0.84), metalness: 0.95, roughness: 0.28)
-        let steelDark = pbrMaterial(color: (0.45, 0.47, 0.52), metalness: 0.9, roughness: 0.4)
+        // 齿轮专用黄铜：比鼓面更暗更粗，与抛光鼓面拉开层次（拉丝贴图在挤出
+        // 形状的 UV 上无意义，齿轮走纯色 + 倒角高光的路线）。
+        let gearBrass = pbrMaterial(color: (0.60, 0.44, 0.19), metalness: 1.0, roughness: 0.44)
+        let grooveBrass = pbrMaterial(color: (0.38, 0.27, 0.10), metalness: 0.9, roughness: 0.50)
+        // 钢件（音梳/转轴/螺丝）：冷色调抛光钢，与暖黄铜形成材质对照。
+        let steel = pbrMaterial(color: (0.70, 0.75, 0.85), metalness: 1.0, roughness: 0.18)
+        let steelDark = pbrMaterial(color: (0.40, 0.44, 0.53), metalness: 0.95, roughness: 0.38)
+        // 滚筒：侧面用拉丝黄铜贴图（底色烤入 diffuse）+ 拉丝粗糙度图（0.25–0.45），
+        // 端盖用径向拉丝贴图。SCNCylinder 材质槽位顺序为 [侧面, 顶盖, 底盖]，
+        // 两端盖同用径向纹，左右对称无方向问题。
+        let drumSide = SCNMaterial()
+        drumSide.lightingModel = .physicallyBased
+        drumSide.diffuse.contents = ProceduralTextures.brushedBrass
+        drumSide.roughness.contents = ProceduralTextures.brushedRoughness
+        drumSide.metalness.contents = NSNumber(value: 1.0)
+        let drumCap = SCNMaterial()
+        drumCap.lightingModel = .physicallyBased
+        drumCap.diffuse.contents = ProceduralTextures.radialBrass
+        drumCap.roughness.contents = NSNumber(value: 0.24)
+        drumCap.metalness.contents = NSNumber(value: 1.0)
+        // 发条筒侧面：同一套拉丝，深一号烤色。
+        let barrelSide = SCNMaterial()
+        barrelSide.lightingModel = .physicallyBased
+        barrelSide.diffuse.contents = ProceduralTextures.brushedBrassDark
+        barrelSide.roughness.contents = ProceduralTextures.brushedRoughness
+        barrelSide.metalness.contents = NSNumber(value: 1.0)
         let wood = SCNMaterial()
         wood.lightingModel = .physicallyBased
         wood.diffuse.contents = ProceduralTextures.walnut
-        wood.roughness.contents = NSNumber(value: 0.85)
+        wood.roughness.contents = ProceduralTextures.walnutRoughness
         wood.metalness.contents = NSNumber(value: 0.0)
         pinGeometry.firstMaterial = brassBright
 
@@ -222,12 +252,13 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let radius = Float(MechanismMath.drumRadius)
         let length = Float(MechanismMath.drumLength)
 
-        // —— 灯光：环境光 + 主方向光（暖）+ 补方向光（冷），金属反射主要来自环境图 ——
+        // —— 灯光：环境光（压低，让明暗有方向）+ 主方向光（暖，投影）
+        // + 补光（冷，弱）+ 轮廓光（左后冷光勾边），金属反射主要来自环境图 ——
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.color = UIColor(red: 0.40, green: 0.32, blue: 0.22, alpha: 1)
-        ambient.light?.intensity = 0.5
+        ambient.light?.color = UIColor(red: 0.38, green: 0.31, blue: 0.23, alpha: 1)
+        ambient.light?.intensity = 0.35
         root.addChildNode(ambient)
 
         let lookTarget = SCNNode()
@@ -240,6 +271,15 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         key.light?.type = .directional
         key.light?.color = UIColor(red: 1.0, green: 0.93, blue: 0.80, alpha: 1)
         key.light?.intensity = 2.0
+        // 投影：方向光的影相机用自动投影（automaticallyAdjustsShadowProjection
+        // 显式打开）——场景包围盒只有约 5.0×4.6×2.6，自动拟合已足够紧、分辨率够用；
+        // 手设 orthographicScale/zNear/zFar 反而容易裁掉影子，故不手设。
+        key.light?.castsShadow = true
+        key.light?.automaticallyAdjustsShadowProjection = true
+        key.light?.shadowMapSize = CGSize(width: 1024, height: 1024)
+        key.light?.shadowRadius = 4
+        key.light?.shadowColor = UIColor(white: 0, alpha: 0.45)
+        key.light?.shadowBias = 0.008
         key.position = SCNVector3(4, 6, 5)
         key.constraints = [SCNLookAtConstraint(target: lookTarget)]
         root.addChildNode(key)
@@ -248,17 +288,32 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         fill.light = SCNLight()
         fill.light?.type = .directional
         fill.light?.color = UIColor(red: 0.72, green: 0.78, blue: 0.90, alpha: 1)
-        fill.light?.intensity = 0.5
+        fill.light?.intensity = 0.35
         fill.position = SCNVector3(-5, 2, 4)
         fill.constraints = [SCNLookAtConstraint(target: lookTarget)]
         root.addChildNode(fill)
 
+        // 轮廓光：左后方冷色方向光（不投影），给滚筒左缘、端板与齿尖勾一条冷边，
+        // 把暖色机芯从同为暖色的背板上分离出来。
+        let rim = SCNNode()
+        rim.light = SCNLight()
+        rim.light?.type = .directional
+        rim.light?.color = UIColor(red: 0.62, green: 0.72, blue: 1.0, alpha: 1)
+        rim.light?.intensity = 0.9
+        rim.position = SCNVector3(-4.5, 3.0, -3.5)
+        rim.constraints = [SCNLookAtConstraint(target: lookTarget)]
+        root.addChildNode(rim)
+
         // —— 相机：挂在 rig 上，视差只移动 rig（见 applyParallax），相机本地
         // 位置与 lookAt 约束保持不变，静止时与固定机位画面逐像素一致。
+        // 精修机位：z 6.6 → 5.3、fov 40 → 47、y 0.55 → 0.35——取景范围（z=0 处
+        // 可见高 4.80 → 4.61）几乎不变，但相机更近、透视梯度更陡
+        // （鼓面近/远端距离比 5.6/7.6 → 4.3/6.3），圆柱的"圆"与前后层次随之增强，
+        // 且同样的 rig 偏移在更近的机位上张角更大，视差也更读得出。
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
-        cameraNode.camera?.fieldOfView = 40
-        cameraNode.position = SCNVector3(0, 0.55, 6.6)
+        cameraNode.camera?.fieldOfView = 47
+        cameraNode.position = SCNVector3(0, 0.35, 5.3)
         cameraNode.constraints = [SCNLookAtConstraint(target: lookTarget)]
         cameraRig.addChildNode(cameraNode)
         root.addChildNode(cameraRig)
@@ -274,6 +329,19 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         plinth.position = SCNVector3(0, -2.3, -0.15)
         root.addChildNode(plinth)
 
+        // 接触阴影：底座顶面（y = −2.16）上方 0.005 处一张径向渐变暗斑，
+        // 与 key 光投影叠加，让机芯"坐"在底座上而非浮空。
+        // 不写深度、靠贴图 alpha 混合压暗；自身不参与投影（建场末尾统一排除）。
+        let contactShadow = SCNNode(geometry: SCNPlane(width: 4.6, height: 1.9))
+        let contactMaterial = SCNMaterial()
+        contactMaterial.lightingModel = .constant
+        contactMaterial.diffuse.contents = ProceduralTextures.contactShadow
+        contactMaterial.writesToDepthBuffer = false
+        contactShadow.geometry?.firstMaterial = contactMaterial
+        contactShadow.eulerAngles.x = -Float.pi / 2
+        contactShadow.position = SCNVector3(0, -2.155, 0.15)
+        root.addChildNode(contactShadow)
+
         // —— 机芯框架：左右黄铜端板 + 转轴 ——
         for side in [-1, 1] {
             let plate = SCNNode(geometry: SCNBox(width: 0.09, height: 1.7, length: 1.7, chamferRadius: 0.02))
@@ -287,11 +355,24 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         root.addChildNode(drumGroup)
 
         let drum = SCNNode(geometry: SCNCylinder(radius: CGFloat(radius), height: CGFloat(length)))
-        drum.geometry?.firstMaterial = brass
+        drum.geometry?.materials = [drumSide, drumCap, drumCap] // [侧面, 端盖, 端盖]
         drum.eulerAngles.z = Float.pi / 2 // 圆柱默认轴向 Y，转到 X（横轴 = 音高）
         drum.name = "drum"
         drumGroup.addChildNode(drum)
         drumMesh = drum
+
+        // 鼓身刻线环：每端两道贴面的深色细带，半径只比鼓面高 0.002，
+        // 读作刻进表面的线而非凸起的箍；与下方端沿压边环一起构成端部细节。
+        let grooveBand = SCNCylinder(radius: CGFloat(radius) + 0.002, height: 0.028)
+        grooveBand.firstMaterial = grooveBrass
+        for side in [-1, 1] {
+            for inset in [0.12, 0.24] {
+                let band = SCNNode(geometry: grooveBand)
+                band.eulerAngles.z = Float.pi / 2
+                band.position = SCNVector3(Float(side) * (length / 2 - Float(inset)), 0, 0)
+                drumGroup.addChildNode(band)
+            }
+        }
 
         let axle = SCNNode(geometry: SCNCylinder(radius: 0.055, height: 3.9))
         axle.geometry?.firstMaterial = steel
@@ -349,11 +430,13 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         }
 
         // —— 齿轮组（滚筒下方，面向观者）——
-        bigGearGroup = makeGear(teeth: 12, outerRadius: 0.52, material: brass, hubMaterial: steel)
+        bigGearGroup = makeGear(teeth: 12, outerRadius: 0.52, material: gearBrass,
+                                hubMaterial: steel, darkMaterial: steelDark)
         bigGearGroup.position = SCNVector3(-1.18, -1.32, 0.32)
         root.addChildNode(bigGearGroup)
 
-        smallGearGroup = makeGear(teeth: 8, outerRadius: 0.37, material: brass, hubMaterial: steel)
+        smallGearGroup = makeGear(teeth: 8, outerRadius: 0.37, material: gearBrass,
+                                  hubMaterial: steel, darkMaterial: steelDark)
         smallGearGroup.position = SCNVector3(-0.469, -1.579, 0.32)
         root.addChildNode(smallGearGroup)
 
@@ -369,20 +452,43 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         govHub.geometry?.firstMaterial = brassDark
         govHub.eulerAngles.x = Float.pi / 2
         governor.addChildNode(govHub)
+        // 与齿轮同规格的零件语言：向后伸的短轴 + 正面轴端盖。
+        let govAxle = SCNNode(geometry: SCNCylinder(radius: 0.028, height: 0.5))
+        govAxle.geometry?.firstMaterial = steelDark
+        govAxle.eulerAngles.x = Float.pi / 2
+        govAxle.position = SCNVector3(0, 0, -0.14)
+        governor.addChildNode(govAxle)
+        let govCap = SCNNode(geometry: SCNCylinder(radius: 0.034, height: 0.05))
+        govCap.geometry?.firstMaterial = brassBright
+        govCap.eulerAngles.x = Float.pi / 2
+        govCap.position = SCNVector3(0, 0, 0.10)
+        governor.addChildNode(govCap)
         governor.position = SCNVector3(1.45, -1.42, 0.32)
         root.addChildNode(governor)
         governorGroup = governor
 
         // —— 发条：鼓身 + 量表指针 + 上链钥匙 ——
+        // 筒身侧面走拉丝、正/背面盖走径向纹（材质槽位同滚筒 [侧面, 盖, 盖]）；
+        // 正面再压一块略凸出的径向纹圆盘作筒盖、配收细的外圈，轮廓读作
+        // "带盖的筒"而非敞口的碗；筒身后缘一道深色凹槽环强调筒深。
         let barrel = SCNNode(geometry: SCNCylinder(radius: 0.44, height: 0.30))
-        barrel.geometry?.firstMaterial = brassDark
+        barrel.geometry?.materials = [barrelSide, drumCap, drumCap]
         barrel.eulerAngles.x = Float.pi / 2
         barrel.position = SCNVector3(0.72, -1.58, 0.32)
         root.addChildNode(barrel)
-        let barrelRing = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.03))
+        let barrelLid = SCNNode(geometry: SCNCylinder(radius: 0.40, height: 0.025))
+        barrelLid.geometry?.firstMaterial = drumCap
+        barrelLid.eulerAngles.x = Float.pi / 2
+        barrelLid.position = SCNVector3(0.72, -1.58, 0.485)
+        root.addChildNode(barrelLid)
+        let barrelRing = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.022))
         barrelRing.geometry?.firstMaterial = brass
         barrelRing.position = SCNVector3(0.72, -1.58, 0.48)
         root.addChildNode(barrelRing)
+        let barrelGroove = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.012))
+        barrelGroove.geometry?.firstMaterial = grooveBrass
+        barrelGroove.position = SCNVector3(0.72, -1.58, 0.20)
+        root.addChildNode(barrelGroove)
 
         let handMesh = SCNNode(geometry: SCNBox(width: 0.05, height: 0.34, length: 0.03, chamferRadius: 0.01))
         handMesh.geometry?.firstMaterial = brassBright
@@ -412,10 +518,29 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         windKey.position = SCNVector3(0.72, -1.58, 0.62)
         root.addChildNode(windKey)
         keyGroup = windKey
+
+        // 投影开关（建场最后一步统一设置）：所有带几何体的零件既投射也承接——
+        // 音梳的影子落到鼓面、齿轮的影子落到背板与底座，是这一轮深度感的关键。
+        // 唯独排除编辑参考环（贴在鼓面的引导线，投影会留下假刻线）与接触阴影面本身；
+        // 相机/灯光/注视目标无几何体，天然跳过。
+        applyShadowFlags(node: root, excluded: [ringGroup, contactShadow])
+    }
+
+    /// 递归设置 castsShadow / receivesShadow；excluded 中的子树整体跳过（身份比对）。
+    private func applyShadowFlags(node: SCNNode, excluded: [SCNNode]) {
+        if excluded.contains(where: { $0 === node }) { return }
+        if node.geometry != nil {
+            node.castsShadow = true
+            node.receivesShadow = true
+        }
+        for child in node.childNodes {
+            applyShadowFlags(node: child, excluded: excluded)
+        }
     }
 
     /// 齿轮：梯形齿廓（与 GearView.GearShape 同一公式）拉伸成型 + 轴毂。
-    private func makeGear(teeth: Int, outerRadius: Double, material: SCNMaterial, hubMaterial: SCNMaterial) -> SCNNode {
+    private func makeGear(teeth: Int, outerRadius: Double, material: SCNMaterial,
+                          hubMaterial: SCNMaterial, darkMaterial: SCNMaterial) -> SCNNode {
         let path = UIBezierPath()
         let root = outerRadius * (1 - 0.15)
         let stepsPerTooth = 4
@@ -430,15 +555,38 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         }
         path.close()
         let shape = SCNShape(path: path, extrusionDepth: 0.12)
+        // 倒角即挤出形状的 bevel 表达：SCNShape 并无 bevelEnabled/bevelAmount 属性
+        // （已核对 API），斜边由 chamferRadius + chamferMode(.both) 在前后两端生成，
+        // 默认倒角轮廓为直线斜面。0.018 远小于挤出深度 0.12 的一半，不会自交。
+        shape.chamferRadius = 0.018
+        shape.chamferMode = .both
         shape.firstMaterial = material
         let mesh = SCNNode(geometry: shape)
         mesh.position = SCNVector3(0, 0, -0.06)
         let hub = SCNNode(geometry: SCNCylinder(radius: CGFloat(outerRadius * 0.18), height: 0.2))
         hub.geometry?.firstMaterial = hubMaterial
         hub.eulerAngles.x = Float.pi / 2
+        // 转轴：向后伸出的短轴（深钢色）；轴毂正面中心螺丝：圆头 + 一字槽
+        // （槽用恒定光照的深色小盒贴在螺丝头表面假造，不开真槽）。
+        // 齿轮从"平面剪影"变成装配好的零件，靠的就是这三件。
+        let axle = SCNNode(geometry: SCNCylinder(radius: CGFloat(outerRadius * 0.075), height: 0.55))
+        axle.geometry?.firstMaterial = darkMaterial
+        axle.eulerAngles.x = Float.pi / 2
+        axle.position = SCNVector3(0, 0, -0.16)
+        let screw = SCNNode(geometry: SCNCylinder(radius: CGFloat(outerRadius * 0.085), height: 0.05))
+        screw.geometry?.firstMaterial = darkMaterial
+        screw.eulerAngles.x = Float.pi / 2
+        screw.position = SCNVector3(0, 0, 0.115)
+        let slot = SCNNode(geometry: SCNBox(width: CGFloat(outerRadius * 0.15), height: 0.022,
+                                            length: 0.014, chamferRadius: 0))
+        slot.geometry?.firstMaterial = ringMaterial
+        slot.position = SCNVector3(0, 0, 0.142)
         let group = SCNNode()
         group.addChildNode(mesh)
         group.addChildNode(hub)
+        group.addChildNode(axle)
+        group.addChildNode(screw)
+        group.addChildNode(slot)
         return group
     }
 
@@ -523,6 +671,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         for child in pinGroup.childNodes { child.removeFromParentNode() }
         for event in melody.events {
             let node = SCNNode(geometry: pinGeometry)
+            // 建场末尾的统一投影遍历跑不到运行时重建的音钉，这里单独打开投射
+            // （钉影落在背板上是播放时的小小动态细节）；钉身太小，不必承接投影。
+            node.castsShadow = true
             let pos = MechanismMath.pinLocalPosition(pitchIndex: event.pitchIndex,
                                                      step: event.step,
                                                      stepCount: melody.stepCount)
