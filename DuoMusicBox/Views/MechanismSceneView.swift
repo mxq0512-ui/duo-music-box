@@ -1,5 +1,6 @@
 import SwiftUI
 import SceneKit
+import CoreMotion
 import UIKit
 
 /// Phase 2 机械主体 3D 视图（SceneKit），替代 Phase 1 的 Canvas 2.5D CylinderView / GearView。
@@ -145,6 +146,28 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private var editing = false
     private var toggleHandler: ((Int, Int) -> Void)?
 
+    // 裸眼 3D 视差：相机挂在 rig 上（只动机位不动相机本地变换），注视目标需逐帧改位故留引用。
+    private let cameraRig = SCNNode()
+    private var lookTargetNode: SCNNode!
+    // CoreMotion 姿态：回调跑在 motionQueue 上只存增量，渲染帧加锁读取。
+    private let motionManager = CMMotionManager()
+    private let motionQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.jacky.duomusicbox.parallax-motion"
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }()
+    private var motionRunning = false
+    private let attitudeLock = NSLock()
+    private var referencePitch: Double?
+    private var referenceRoll: Double?
+    private var targetPitchDelta: Double = 0
+    private var targetRollDelta: Double = 0
+    // 平滑后的机位偏移（只在渲染帧内读写）；lastRenderTime 用于帧率无关的阻尼系数。
+    private var smoothedParallaxX: Double = 0
+    private var smoothedParallaxY: Double = 0
+    private var lastRenderTime: TimeInterval?
+
     override init() {
         super.init()
         buildScene()
@@ -163,11 +186,16 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         view.isPlaying = true
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         view.addGestureRecognizer(tap)
+        startParallaxMotion()
     }
 
     func detach() {
+        stopParallaxMotion()
         sceneView?.delegate = nil
         sceneView = nil
+        smoothedParallaxX = 0
+        smoothedParallaxY = 0
+        lastRenderTime = nil
     }
 
     // MARK: 建场（一次性，几何与材质全部共享）
@@ -205,6 +233,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let lookTarget = SCNNode()
         lookTarget.position = SCNVector3(0, -0.2, 0)
         root.addChildNode(lookTarget)
+        lookTargetNode = lookTarget
 
         let key = SCNNode()
         key.light = SCNLight()
@@ -224,13 +253,15 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         fill.constraints = [SCNLookAtConstraint(target: lookTarget)]
         root.addChildNode(fill)
 
-        // —— 相机 ——
+        // —— 相机：挂在 rig 上，视差只移动 rig（见 applyParallax），相机本地
+        // 位置与 lookAt 约束保持不变，静止时与固定机位画面逐像素一致。
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
         cameraNode.camera?.fieldOfView = 40
         cameraNode.position = SCNVector3(0, 0.55, 6.6)
         cameraNode.constraints = [SCNLookAtConstraint(target: lookTarget)]
-        root.addChildNode(cameraNode)
+        cameraRig.addChildNode(cameraNode)
+        root.addChildNode(cameraRig)
 
         // —— 盒体：胡桃木背板 + 底座 ——
         let backPanel = SCNNode(geometry: SCNBox(width: 5.0, height: 4.4, length: 0.22, chamferRadius: 0.03))
@@ -533,9 +564,87 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         sceneView?.isPlaying = true
     }
 
+    // MARK: 裸眼 3D 视差（陀螺仪倾斜 → 相机机位）
+
+    /// 启动设备姿态采样：以收到的首个样本为中立参考姿态，之后只保存相对增量。
+    /// 模拟器等无 deviceMotion 的环境直接跳过——增量恒为 0，机位静止，
+    /// CI 截图与旧行为不受影响。无需任何权限（deviceMotion 不读麦克风/相机），
+    /// 也不需要 NSMotionUsageDescription（那是健康/活动数据 CMSensorRecorder 的要求）。
+    /// 幂等：motionRunning 把关，重复 attach 不会重复启动。
+    private func startParallaxMotion() {
+        guard !motionRunning, motionManager.isDeviceMotionAvailable else { return }
+        motionRunning = true
+        attitudeLock.lock()
+        referencePitch = nil
+        referenceRoll = nil
+        targetPitchDelta = 0
+        targetRollDelta = 0
+        attitudeLock.unlock()
+        motionManager.deviceMotionUpdateInterval = 1.0 / 60.0
+        motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: motionQueue) { [weak self] motion, _ in
+            guard let self, let attitude = motion?.attitude else { return }
+            // 回调只做最少的存值：映射与平滑都在渲染帧里算，不占用运动队列。
+            self.attitudeLock.lock()
+            if let referencePitch = self.referencePitch, let referenceRoll = self.referenceRoll {
+                self.targetPitchDelta = Self.normalizedAngleDelta(attitude.pitch - referencePitch)
+                self.targetRollDelta = Self.normalizedAngleDelta(attitude.roll - referenceRoll)
+            } else {
+                self.referencePitch = attitude.pitch
+                self.referenceRoll = attitude.roll
+            }
+            self.attitudeLock.unlock()
+        }
+    }
+
+    /// 停止采样并清空参考/增量：下次 attach 以当时的握持姿态重新标定中立位。
+    private func stopParallaxMotion() {
+        guard motionRunning else { return }
+        motionRunning = false
+        motionManager.stopDeviceMotionUpdates()
+        attitudeLock.lock()
+        referencePitch = nil
+        referenceRoll = nil
+        targetPitchDelta = 0
+        targetRollDelta = 0
+        attitudeLock.unlock()
+    }
+
+    /// 角度差归一化到 (−π, π]：姿态角在 ±π 处折返时，避免增量虚报近一整圈。
+    private static func normalizedAngleDelta(_ delta: Double) -> Double {
+        atan2(sin(delta), cos(delta))
+    }
+
+    /// 渲染帧调用：把机位（cameraRig）与注视目标平滑地推向当前视差目标。
+    /// 一阶低通 alpha = 1 − exp(−dt/τ)：dt 取相邻渲染时间戳之差并钳制到 0.1s，
+    /// 帧率无关，且从后台切回时不会一帧跳到位。目标恒为 0（无姿态数据）时
+    /// rig 停在原点、目标停在基准位 (0, −0.2, 0)，与视差功能加入前完全一致。
+    private func applyParallax(atTime time: TimeInterval) {
+        attitudeLock.lock()
+        let pitchDelta = targetPitchDelta
+        let rollDelta = targetRollDelta
+        attitudeLock.unlock()
+
+        let target = MechanismMath.parallaxOffset(pitchDelta: pitchDelta, rollDelta: rollDelta)
+        let dt: Double
+        if let lastRenderTime {
+            dt = min(max(time - lastRenderTime, 0), 0.1)
+        } else {
+            dt = 1.0 / 60.0
+        }
+        lastRenderTime = time
+        let alpha = 1 - exp(-dt / MechanismMath.parallaxSmoothingTau)
+        smoothedParallaxX += (target.x - smoothedParallaxX) * alpha
+        smoothedParallaxY += (target.y - smoothedParallaxY) * alpha
+
+        cameraRig.position = SCNVector3(Float(smoothedParallaxX), Float(smoothedParallaxY), 0)
+        let shift = MechanismMath.parallaxTargetShift(offset: (x: smoothedParallaxX, y: smoothedParallaxY))
+        lookTargetNode.position = SCNVector3(Float(shift.x), Float(-0.2 + shift.y), 0)
+    }
+
     // MARK: 渲染帧回调（梳齿振动是唯一需要逐帧更新的量）
 
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        applyParallax(atTime: time)
         strikeLock.lock()
         let strikes = strikeTimes
         strikeLock.unlock()
