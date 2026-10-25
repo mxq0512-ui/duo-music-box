@@ -360,24 +360,24 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         springHand = hand
 
         // 蝶形钥匙：中轴 + 立柱 + 双环握柄（与 WindingControl 的 2D 钥匙同造型）
-        let key = SCNNode()
+        let windKey = SCNNode()
         let shaft = SCNNode(geometry: SCNCylinder(radius: 0.045, height: 0.30))
         shaft.geometry?.firstMaterial = steel
         shaft.eulerAngles.x = Float.pi / 2
-        key.addChildNode(shaft)
+        windKey.addChildNode(shaft)
         let stem = SCNNode(geometry: SCNBox(width: 0.06, height: 0.30, length: 0.05, chamferRadius: 0.01))
         stem.geometry?.firstMaterial = brass
         stem.position = SCNVector3(0, 0.10, 0.14)
-        key.addChildNode(stem)
+        windKey.addChildNode(stem)
         for side in [-1, 1] {
             let loop = SCNNode(geometry: SCNTorus(ringRadius: 0.115, pipeRadius: 0.028))
             loop.geometry?.firstMaterial = brass
             loop.position = SCNVector3(Float(side) * 0.115, 0.30, 0.14)
-            key.addChildNode(loop)
+            windKey.addChildNode(loop)
         }
-        key.position = SCNVector3(0.72, -1.58, 0.62)
-        root.addChildNode(key)
-        keyGroup = key
+        windKey.position = SCNVector3(0.72, -1.58, 0.62)
+        root.addChildNode(windKey)
+        keyGroup = windKey
     }
 
     /// 齿轮：梯形齿廓（与 GearView.GearShape 同一公式）拉伸成型 + 轴毂。
@@ -461,7 +461,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
 
         if triggeredPitches != lastTriggeredPitches {
             for (i, material) in toothMaterials.enumerated() {
-                material.emissive.contents = triggeredPitches.contains(i)
+                material.emission.contents = triggeredPitches.contains(i)
                     ? UIColor(red: 0.45, green: 0.32, blue: 0.08, alpha: 1)
                     : UIColor.black
             }
