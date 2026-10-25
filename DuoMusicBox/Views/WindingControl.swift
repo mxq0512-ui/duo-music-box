@@ -7,6 +7,8 @@ import SwiftUI
 public struct WindingControl: View {
     @ObservedObject public var playback: PlaybackEngine
     public let audio: MusicBoxAudioEngine
+    /// 钥匙累计转角回调（度）：Phase 2 的 3D 场景用它同步呈现钥匙转动，本控件仍是唯一手势入口。
+    public var onKeyAngleChange: ((Double) -> Void)?
 
     @State private var keyAngle: Double = 0
     @State private var lastDragAngle: Double?
@@ -17,9 +19,11 @@ public struct WindingControl: View {
     /// 每积累多少度触发一次棘轮声。
     private static let ratchetStepDegrees = 30.0
 
-    public init(playback: PlaybackEngine, audio: MusicBoxAudioEngine) {
+    public init(playback: PlaybackEngine, audio: MusicBoxAudioEngine,
+                onKeyAngleChange: ((Double) -> Void)? = nil) {
         self.playback = playback
         self.audio = audio
+        self.onKeyAngleChange = onKeyAngleChange
     }
 
     public var body: some View {
@@ -93,6 +97,7 @@ public struct WindingControl: View {
         while delta > 180 { delta -= 360 }
         while delta < -180 { delta += 360 }
         keyAngle += delta
+        onKeyAngleChange?(keyAngle)
         if delta > 0 {
             playback.addCharge(delta / 360.0 * Self.chargePerRevolution)
             ratchetAccumulator += delta

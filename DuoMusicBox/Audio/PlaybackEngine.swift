@@ -65,12 +65,34 @@ public final class PlaybackEngine: ObservableObject {
     /// 当前速度（BPM）。装载旋律时取旋律自带速度，之后可由用户滑杆调整。
     @Published public var tempoBPM: Double = 100
 
+    /// 一次"步触发"快照：某一步抵达拨弦线的瞬间，被拨动的全部音高。
+    /// 只读观察口，供 Phase 2 的 3D 音梳振动等纯视觉效果订阅；
+    /// 在 tick() 里 stepFloat 跨过步界时发布，与 currentStep 同步、与音频调度同源，
+    /// 音频调度本身不依赖它，它的发布时机也不影响任何已排程的声音。
+    public struct StepTrigger: Equatable {
+        public let step: Int
+        public let pitchIndices: [Int]
+        /// 触发时刻（CACurrentMediaTime 时钟域，与 SceneKit 渲染回调的时间同域）。
+        public let time: CFTimeInterval
+
+        public init(step: Int, pitchIndices: [Int], time: CFTimeInterval) {
+            self.step = step
+            self.pitchIndices = pitchIndices
+            self.time = time
+        }
+    }
+
+    /// 最近一次步触发（无音符的步不发布）。暂停/停止/换旋律时复位。
+    @Published public private(set) var lastStepTrigger: StepTrigger?
+
     public private(set) var melody: Melody = Melody.blankTemplate
 
     private var timer: Timer?
     private var stepFloat: Double = 0
     private var nextStepToSchedule = 0
     private var lastTickTime: CFTimeInterval = 0
+    /// 上次已发布触发快照的步；-1 表示尚未触发（跨步检测用）。
+    private var lastTriggeredStep = -1
 
     /// 发条消耗速率：一格满储能（1.0）约可播 180 秒。
     private static let springDrainPerSecond = 1.0 / 180.0
@@ -91,6 +113,8 @@ public final class PlaybackEngine: ObservableObject {
         tempoBPM = newMelody.tempoBPM
         stepFloat = 0
         nextStepToSchedule = 0
+        lastTriggeredStep = -1
+        lastStepTrigger = nil
         publishPosition()
         if wasPlaying { play() }
     }
@@ -100,6 +124,8 @@ public final class PlaybackEngine: ObservableObject {
         if updated.stepCount != melody.stepCount {
             stepFloat = 0
             nextStepToSchedule = 0
+            lastTriggeredStep = -1
+            lastStepTrigger = nil
         }
         melody = updated
     }
@@ -127,6 +153,8 @@ public final class PlaybackEngine: ObservableObject {
         // 暂停量化到当前格开头：恢复时整格重播，避免半格错位。
         stepFloat = floor(stepFloat)
         nextStepToSchedule = Int(stepFloat)
+        // 恢复时整格的音符会重新发声，触发快照也要允许同一格再次发布。
+        lastTriggeredStep = -1
         publishPosition()
     }
 
@@ -134,6 +162,8 @@ public final class PlaybackEngine: ObservableObject {
         if isPlaying { pause() }
         stepFloat = 0
         nextStepToSchedule = 0
+        lastTriggeredStep = -1
+        lastStepTrigger = nil
         publishPosition()
     }
 
@@ -166,10 +196,29 @@ public final class PlaybackEngine: ObservableObject {
             stepFloat += dt / sd
             springCharge = max(0, springCharge - dt * Self.springDrainPerSecond)
             scheduleAhead(now: now, stepDuration: sd)
+            // 触发快照与发声共用同一闸门：储能耗尽、声音停下时视觉也不触发。
+            publishTriggerIfStepChanged(now: now)
         }
         // 储能耗尽时 stepFloat 不再前进（曲速渐慢直至停的状态层体现），
         // 但定时器继续跑：用户一上发条即可自动恢复，无需重新按播放。
         publishPosition()
+    }
+
+    /// 步触发快照的发布：stepFloat 跨入新的一格且该格有音符时发布一次。
+    /// 与 scheduleAhead 的发声时机对齐（音符在 stepFloat 抵达该格时发声），
+    /// 但只是观察，不参与调度。步进因钳制 dt 至多跨一格的常态下不会漏步；
+    /// 万一跨过整格，只补发布当前格（视觉效果，不值得为它引入队列）。
+    private func publishTriggerIfStepChanged(now: CFTimeInterval) {
+        // 直接由 stepFloat 推导（不读 currentStep）：本方法在 publishPosition 之前调用，
+        // 用同一条 PlaybackMath 公式保证与随后发布的位置严格一致。
+        let step = PlaybackMath.loopStep(stepFloat: stepFloat, stepCount: melody.stepCount)
+        guard step != lastTriggeredStep else { return }
+        lastTriggeredStep = step
+        let events = melody.events(atStep: step)
+        guard !events.isEmpty else { return }
+        lastStepTrigger = StepTrigger(step: step,
+                                      pitchIndices: events.map(\.pitchIndex),
+                                      time: now)
     }
 
     private func scheduleAhead(now: CFTimeInterval, stepDuration sd: Double) {

@@ -4,7 +4,7 @@ import SwiftUI
 /// 模式 A 教程的乐谱指引区在此预留为同一块音高网格，教程步进逻辑在 Phase 3 扩展）。
 ///
 /// 布局与全 App 统一：上半区 = 指引（音高网格 + 当前节拍 + 选中格信息），
-/// 下半区 = 可编辑滚筒（CylinderView 编辑模式）。装钉/拆钉即时发声验证，
+/// 下半区 = 可编辑滚筒（Phase 2 起为 MechanismSceneView 3D 场景，编辑语义不变）。装钉/拆钉即时发声验证，
 /// 编辑结果实时 sync 回 PlaybackEngine，试听与创作共用同一份草稿数据。
 public struct ComposeView: View {
     @ObservedObject public var playback: PlaybackEngine
@@ -30,11 +30,15 @@ public struct ComposeView: View {
     public var body: some View {
         VStack(spacing: 10) {
             guidancePanel
-            CylinderView(melody: draft,
-                         rotationDegrees: playback.melody.id == draft.id ? playback.cylinderRotation : 0,
-                         currentStep: playback.currentStep,
-                         triggeredPitches: triggered,
-                         isEditing: true) { pitch, step in
+            // 可编辑滚筒：Phase 2 起与欣赏模式共用同一块 3D 场景，
+            // 点按增删的回调、草稿数据与发声反馈与 Phase 1 完全一致（仍走 toggle）。
+            MechanismSceneView(melody: draft,
+                               playback: playback,
+                               rotationDegrees: playback.melody.id == draft.id ? playback.cylinderRotation : 0,
+                               triggeredPitches: triggered,
+                               springCharge: playback.springCharge,
+                               windingKeyAngle: 0,
+                               isEditing: true) { pitch, step in
                 toggle(pitch: pitch, step: step)
             }
             .frame(height: 218)
