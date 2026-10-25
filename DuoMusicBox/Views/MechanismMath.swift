@@ -112,4 +112,48 @@ public enum MechanismMath {
         let c = min(1, max(0, charge))
         return -135 + c * 270
     }
+
+    // MARK: - 裸眼 3D 视差（陀螺仪倾斜 → 相机机位）
+
+    /// 视差输入钳制：姿态增量（当前姿态 − 启动参考姿态）超过 ±0.45 rad（≈26°）不再放大偏移。
+    /// 覆盖正常手持把玩的倾斜幅度，又保证极端姿态下画面不漂移失控。
+    public static let parallaxMaxDelta = 0.45
+    /// 相机机位（rig）最大横向偏移（场景单位）。
+    public static let parallaxMaxOffsetX = 0.5
+    /// 相机机位最大纵向偏移（场景单位）。
+    public static let parallaxMaxOffsetY = 0.32
+    /// 注视目标的跟随比例：目标只移动机位偏移的 35%，机位与目标之间的差速
+    /// 让相机产生小幅摆头——近处滚筒与远处背板在屏幕上的位移差，就是裸眼 3D 的来源。
+    public static let parallaxTargetShiftRatio = 0.35
+    /// 视差平滑时间常数（秒）：渲染帧以一阶低通 exp(−dt/τ) 追赶目标偏移，
+    /// 约 0.12 秒——足够跟手，又能滤掉手抖的高频噪声。
+    public static let parallaxSmoothingTau = 0.12
+
+    /// 姿态增量（弧度）→ 相机机位偏移（场景单位）：线性映射 + 输入/输出双钳制，纯函数。
+    ///
+    /// 符号约定（xArbitraryZVertical 参考系下 CMAttitude 的欧拉角分解）：
+    /// - pitch：手机竖直握持时约 −π/2；上端向远离用户的方向倾（趋向平放、屏幕朝上）时
+    ///   pitch 向 0 增大，即"顶部后仰" ⇒ pitchDelta > 0。本函数取正增益 ⇒ 机位上移（+y），
+    ///   效果是从更上方俯视机芯，如探头望进盒内。
+    /// - roll：手机上端向右倾（拧腕顺时针）时 roll 增大 ⇒ rollDelta > 0，
+    ///   同取正增益 ⇒ 机位右移（+x）。
+    /// 两轴同号即"视点随倾斜同向"的窗口隐喻。若真机手感方向相反，只需在本函数
+    /// 翻转对应轴的符号——单元测试逐条锁定本约定，翻转时同步改测试即可。
+    public static func parallaxOffset(pitchDelta: Double, rollDelta: Double) -> (x: Double, y: Double) {
+        let p = normalizedParallaxDelta(pitchDelta)
+        let r = normalizedParallaxDelta(rollDelta)
+        return (r * parallaxMaxOffsetX, p * parallaxMaxOffsetY)
+    }
+
+    /// 注视目标的位移 = 机位偏移 × parallaxTargetShiftRatio（当前 35%）。
+    public static func parallaxTargetShift(offset: (x: Double, y: Double)) -> (x: Double, y: Double) {
+        (offset.x * parallaxTargetShiftRatio, offset.y * parallaxTargetShiftRatio)
+    }
+
+    /// 增量归一化：先钳制到 ±parallaxMaxDelta 再除以该值，结果落在 [−1, 1]；
+    /// 非有限输入（姿态异常）按 0 处理，画面保持静止而不是跳飞。
+    private static func normalizedParallaxDelta(_ delta: Double) -> Double {
+        guard delta.isFinite else { return 0 }
+        return min(parallaxMaxDelta, max(-parallaxMaxDelta, delta)) / parallaxMaxDelta
+    }
 }
