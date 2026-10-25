@@ -62,6 +62,14 @@ jobs:
           sleep 8
           xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/07-diag-nodrum.png"
           xcrun simctl terminate "$UDID" com.jacky.duomusicbox || true
+          xcrun simctl launch "$UDID" com.jacky.duomusicbox SCREENSHOT_OPEN_LISTEN DBG_HIDE_EDGE
+          sleep 8
+          xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/08-diag-noedge.png"
+          xcrun simctl terminate "$UDID" com.jacky.duomusicbox || true
+          xcrun simctl launch "$UDID" com.jacky.duomusicbox SCREENSHOT_OPEN_COMPOSE DBG_HIDE_RINGS
+          sleep 6
+          xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/09-diag-norings.png"
+          xcrun simctl terminate "$UDID" com.jacky.duomusicbox || true
           find ~/Library/Developer/CoreSimulator/Devices/"$UDID"/data/Library/Logs -name 'DuoMusicBox*' -exec cp {} "$RUNNER_TEMP/shots/" \; 2>/dev/null || true
           ls -la "$RUNNER_TEMP/shots"
 
@@ -74,7 +82,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --orphan ci-screenshots
           git rm -rf . >/dev/null 2>&1 || true
-          cp /tmp/01-closed.png /tmp/02-listen.png /tmp/03-compose.png /tmp/04-compose-late.png /tmp/05-listen-late.png /tmp/06-diag-top.png /tmp/07-diag-nodrum.png .
+          cp /tmp/01-closed.png /tmp/02-listen.png /tmp/03-compose.png /tmp/04-compose-late.png /tmp/05-listen-late.png /tmp/06-diag-top.png /tmp/07-diag-nodrum.png /tmp/08-diag-noedge.png /tmp/09-diag-norings.png .
           cp /tmp/*.ips . 2>/dev/null || true
           printf '# CI simulator screenshots\n\nLatest run: %s\n' "$(date -u +%FT%TZ)" > README.md
           git add .
