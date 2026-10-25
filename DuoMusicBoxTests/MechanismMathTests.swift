@@ -128,4 +128,81 @@ final class MechanismMathTests: XCTestCase {
         XCTAssertEqual(MechanismMath.springIndicatorDegrees(charge: 2), 135, accuracy: 1e-12, "过充钳制")
         XCTAssertEqual(MechanismMath.springIndicatorDegrees(charge: -1), -135, accuracy: 1e-12, "负储能钳制")
     }
+
+    // MARK: - 裸眼 3D 视差（陀螺仪倾斜映射；符号约定与 MechanismMath 实现注释一致）
+
+    func testParallaxZeroDelta() {
+        // 无倾斜 → 无偏移：模拟器/静止时画面与视差功能加入前完全一致。
+        let offset = MechanismMath.parallaxOffset(pitchDelta: 0, rollDelta: 0)
+        XCTAssertEqual(offset.x, 0, accuracy: 1e-12)
+        XCTAssertEqual(offset.y, 0, accuracy: 1e-12)
+        let shift = MechanismMath.parallaxTargetShift(offset: offset)
+        XCTAssertEqual(shift.x, 0, accuracy: 1e-12)
+        XCTAssertEqual(shift.y, 0, accuracy: 1e-12)
+        // 姿态异常（非有限值）按静止处理，不把机位甩飞。
+        let nonFinite = MechanismMath.parallaxOffset(pitchDelta: .nan, rollDelta: .infinity)
+        XCTAssertEqual(nonFinite.x, 0, accuracy: 1e-12)
+        XCTAssertEqual(nonFinite.y, 0, accuracy: 1e-12)
+    }
+
+    func testParallaxSignConvention() {
+        // 顶部后仰（趋向平放，pitch 增大）→ 机位上移，从更上方俯视机芯。
+        let away = MechanismMath.parallaxOffset(pitchDelta: MechanismMath.parallaxMaxDelta, rollDelta: 0)
+        XCTAssertEqual(away.y, MechanismMath.parallaxMaxOffsetY, accuracy: 1e-12)
+        XCTAssertEqual(away.x, 0, accuracy: 1e-12, "纯 pitch 输入不产生横向偏移")
+        // 顶部前倾（趋向竖直，pitch 减小）→ 机位下移。
+        let toward = MechanismMath.parallaxOffset(pitchDelta: -MechanismMath.parallaxMaxDelta, rollDelta: 0)
+        XCTAssertEqual(toward.y, -MechanismMath.parallaxMaxOffsetY, accuracy: 1e-12)
+        // 上端右倾（roll 增大）→ 机位右移；左倾 → 左移。
+        let right = MechanismMath.parallaxOffset(pitchDelta: 0, rollDelta: MechanismMath.parallaxMaxDelta)
+        XCTAssertEqual(right.x, MechanismMath.parallaxMaxOffsetX, accuracy: 1e-12)
+        XCTAssertEqual(right.y, 0, accuracy: 1e-12, "纯 roll 输入不产生纵向偏移")
+        let left = MechanismMath.parallaxOffset(pitchDelta: 0, rollDelta: -MechanismMath.parallaxMaxDelta)
+        XCTAssertEqual(left.x, -MechanismMath.parallaxMaxOffsetX, accuracy: 1e-12)
+        // 半程增量 → 半程偏移（钳制区间内严格线性）。
+        let half = MechanismMath.parallaxOffset(pitchDelta: MechanismMath.parallaxMaxDelta / 2,
+                                                rollDelta: MechanismMath.parallaxMaxDelta / 2)
+        XCTAssertEqual(half.y, MechanismMath.parallaxMaxOffsetY / 2, accuracy: 1e-12)
+        XCTAssertEqual(half.x, MechanismMath.parallaxMaxOffsetX / 2, accuracy: 1e-12)
+    }
+
+    func testParallaxClamping() {
+        // 超出 ±0.45 rad 的增量一律钳制在最大偏移，一轴饱和不影响另一轴。
+        let wild = MechanismMath.parallaxOffset(pitchDelta: 2.0, rollDelta: -3.0)
+        XCTAssertEqual(wild.y, MechanismMath.parallaxMaxOffsetY, accuracy: 1e-12)
+        XCTAssertEqual(wild.x, -MechanismMath.parallaxMaxOffsetX, accuracy: 1e-12)
+        let mixed = MechanismMath.parallaxOffset(pitchDelta: 99, rollDelta: MechanismMath.parallaxMaxDelta / 4)
+        XCTAssertEqual(mixed.y, MechanismMath.parallaxMaxOffsetY, accuracy: 1e-12)
+        XCTAssertEqual(mixed.x, MechanismMath.parallaxMaxOffsetX / 4, accuracy: 1e-12)
+    }
+
+    func testParallaxTargetShiftRatio() {
+        // 注视目标只跟随机位的 35%：0.5 → 0.175、0.32 → 0.112，符号保持。
+        let shift = MechanismMath.parallaxTargetShift(offset: (x: 0.5, y: 0.32))
+        XCTAssertEqual(shift.x, 0.175, accuracy: 1e-12)
+        XCTAssertEqual(shift.y, 0.112, accuracy: 1e-12)
+        let negative = MechanismMath.parallaxTargetShift(offset: (x: -0.2, y: 0.1))
+        XCTAssertEqual(negative.x, -0.07, accuracy: 1e-12)
+        XCTAssertEqual(negative.y, 0.035, accuracy: 1e-12)
+    }
+
+    func testParallaxMonotonicity() {
+        // 钳制区间内增量单调增 → 两轴偏移单调不减；内点严格递增。
+        var lastX = -Double.infinity
+        var lastY = -Double.infinity
+        for delta in stride(from: -0.45, through: 0.45, by: 0.05) {
+            let o = MechanismMath.parallaxOffset(pitchDelta: delta, rollDelta: delta)
+            XCTAssertGreaterThanOrEqual(o.x, lastX, "roll \(delta) 处 x 不单调")
+            XCTAssertGreaterThanOrEqual(o.y, lastY, "pitch \(delta) 处 y 不单调")
+            lastX = o.x
+            lastY = o.y
+        }
+        let q1 = MechanismMath.parallaxOffset(pitchDelta: 0.1125, rollDelta: 0.1125)
+        let q2 = MechanismMath.parallaxOffset(pitchDelta: 0.225, rollDelta: 0.225)
+        let q3 = MechanismMath.parallaxOffset(pitchDelta: 0.45, rollDelta: 0.45)
+        XCTAssertLessThan(q1.x, q2.x)
+        XCTAssertLessThan(q2.x, q3.x)
+        XCTAssertLessThan(q1.y, q2.y)
+        XCTAssertLessThan(q2.y, q3.y)
+    }
 }
