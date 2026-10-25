@@ -215,9 +215,14 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let brass = pbrMaterial(color: (0.83, 0.65, 0.30), metalness: 1.0, roughness: 0.30)
         let brassBright = pbrMaterial(color: (0.99, 0.87, 0.56), metalness: 1.0, roughness: 0.22)
         let brassDark = pbrMaterial(color: (0.52, 0.38, 0.15), metalness: 0.9, roughness: 0.45)
-        // 齿轮专用黄铜：比鼓面更暗更粗，与抛光鼓面拉开层次（拉丝贴图在挤出
-        // 形状的 UV 上无意义，齿轮走纯色 + 倒角高光的路线）。
-        let gearBrass = pbrMaterial(color: (0.60, 0.44, 0.19), metalness: 1.0, roughness: 0.44)
+        // 齿轮专用黄铜：比鼓面更暗更粗，与抛光鼓面拉开层次。微调轮把反照率从
+        // (0.60, 0.44, 0.19) 提到 (0.74, 0.57, 0.27)、粗糙度 0.44 → 0.34：齿轮坐在
+        // 鼓影里，原值读作闷剪影；新值仍明确暗于鼓面拉丝底色 (0.84, 0.66, 0.31)，
+        // 层次顺序不变（鼓最亮、齿轮居中、背板最暗）。
+        // 曾评估给齿轮加拉丝粗糙度图：SCNShape 端面 UV 是路径坐标（非 0–1 归一化）、
+        // 挤出壁面又是另一套 UV，拉丝的走向与频率不可控，故不加，齿轮走纯色 +
+        // 倒角高光的路线。
+        let gearBrass = pbrMaterial(color: (0.74, 0.57, 0.27), metalness: 1.0, roughness: 0.34)
         let grooveBrass = pbrMaterial(color: (0.38, 0.27, 0.10), metalness: 0.9, roughness: 0.50)
         // 钢件（音梳/转轴/螺丝）：冷色调抛光钢，与暖黄铜形成材质对照。
         let steel = pbrMaterial(color: (0.70, 0.75, 0.85), metalness: 1.0, roughness: 0.18)
@@ -288,7 +293,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         fill.light = SCNLight()
         fill.light?.type = .directional
         fill.light?.color = UIColor(red: 0.72, green: 0.78, blue: 0.90, alpha: 1)
-        fill.light?.intensity = 0.35
+        fill.light?.intensity = 0.45 // 微调轮 0.35 → 0.45：只轻抬下排齿轮/发条/调速器一带
         fill.position = SCNVector3(-5, 2, 4)
         fill.constraints = [SCNLookAtConstraint(target: lookTarget)]
         root.addChildNode(fill)
@@ -374,7 +379,10 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             }
         }
 
-        let axle = SCNNode(geometry: SCNCylinder(radius: 0.055, height: 3.9))
+        // 转轴：微调轮半径 0.055 → 0.077（+40%），读作实心轴杆而非铁丝；
+        // 全长 3.9 → 3.87：端板外表面在 ±1.905，轴端外伸由 0.045 收至约 0.03
+        //（−30%），仍完整贯穿端板。
+        let axle = SCNNode(geometry: SCNCylinder(radius: 0.077, height: 3.87))
         axle.geometry?.firstMaterial = steel
         axle.eulerAngles.z = Float.pi / 2
         drumGroup.addChildNode(axle)
@@ -499,23 +507,28 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         root.addChildNode(hand)
         springHand = hand
 
-        // 蝶形钥匙：中轴 + 立柱 + 双环握柄（与 WindingControl 的 2D 钥匙同造型）
+        // 蝶形钥匙：中轴 + 立柱 + 双环握柄（与 WindingControl 的 2D 钥匙同造型）。
+        // 微调轮：全组改用与量表指针同款的抛光亮黄铜 brassBright 抓光，并整体
+        // 放大 ×1.25；放大绕自身原点，中轴后端会向筒内多伸 0.15 × 0.25 = 0.0375，
+        // 故位置 z 由 0.62 补到 0.6575，轴底仍落在发条筒正面（z = 0.47），不悬不陷。
+        // 转动行为不变：update() 只写 keyGroup.eulerAngles.z，与 scale 正交。
         let windKey = SCNNode()
         let shaft = SCNNode(geometry: SCNCylinder(radius: 0.045, height: 0.30))
-        shaft.geometry?.firstMaterial = steel
+        shaft.geometry?.firstMaterial = brassBright
         shaft.eulerAngles.x = Float.pi / 2
         windKey.addChildNode(shaft)
         let stem = SCNNode(geometry: SCNBox(width: 0.06, height: 0.30, length: 0.05, chamferRadius: 0.01))
-        stem.geometry?.firstMaterial = brass
+        stem.geometry?.firstMaterial = brassBright
         stem.position = SCNVector3(0, 0.10, 0.14)
         windKey.addChildNode(stem)
         for side in [-1, 1] {
             let loop = SCNNode(geometry: SCNTorus(ringRadius: 0.115, pipeRadius: 0.028))
-            loop.geometry?.firstMaterial = brass
+            loop.geometry?.firstMaterial = brassBright
             loop.position = SCNVector3(Float(side) * 0.115, 0.30, 0.14)
             windKey.addChildNode(loop)
         }
-        windKey.position = SCNVector3(0.72, -1.58, 0.62)
+        windKey.scale = SCNVector3(1.25, 1.25, 1.25)
+        windKey.position = SCNVector3(0.72, -1.58, 0.6575)
         root.addChildNode(windKey)
         keyGroup = windKey
 
