@@ -526,12 +526,12 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         applyShadowFlags(node: root, excluded: [ringGroup, contactShadow])
     }
 
-    /// 递归设置 castsShadow / receivesShadow；excluded 中的子树整体跳过（身份比对）。
+    /// 递归设置 castsShadow；excluded 中的子树整体跳过（身份比对）。承接阴影由材质自动完成。
     private func applyShadowFlags(node: SCNNode, excluded: [SCNNode]) {
         if excluded.contains(where: { $0 === node }) { return }
         if node.geometry != nil {
             node.castsShadow = true
-            node.receivesShadow = true
+            // 注：SceneKit 没有节点级 receivesShadow —— 被投影光照亮的材质自动承接阴影。
         }
         for child in node.childNodes {
             applyShadowFlags(node: child, excluded: excluded)
