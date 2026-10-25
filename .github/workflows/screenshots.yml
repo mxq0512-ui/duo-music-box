@@ -43,8 +43,10 @@ jobs:
           xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/01-closed.png"
           xcrun simctl terminate "$UDID" com.jacky.duomusicbox || true
           xcrun simctl launch "$UDID" com.jacky.duomusicbox SCREENSHOT_OPEN_LISTEN
-          sleep 3
+          sleep 8
           xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/02-listen.png"
+          sleep 5
+          xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/shots/05-listen-late.png"
           xcrun simctl terminate "$UDID" com.jacky.duomusicbox || true
           xcrun simctl launch "$UDID" com.jacky.duomusicbox SCREENSHOT_OPEN_COMPOSE
           sleep 6
@@ -63,7 +65,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --orphan ci-screenshots
           git rm -rf . >/dev/null 2>&1 || true
-          cp /tmp/01-closed.png /tmp/02-listen.png /tmp/03-compose.png /tmp/04-compose-late.png .
+          cp /tmp/01-closed.png /tmp/02-listen.png /tmp/03-compose.png /tmp/04-compose-late.png /tmp/05-listen-late.png .
           cp /tmp/*.ips . 2>/dev/null || true
           printf '# CI simulator screenshots\n\nLatest run: %s\n' "$(date -u +%FT%TZ)" > README.md
           git add .
