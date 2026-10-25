@@ -23,6 +23,10 @@
 		FB0000000000000000000014 /* GiftView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000014 /* GiftView.swift */; };
 		FB0000000000000000000015 /* MelodyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000015 /* MelodyTests.swift */; };
 		FB0000000000000000000016 /* PlaybackMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000016 /* PlaybackMathTests.swift */; };
+		FB0000000000000000000017 /* MechanismMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000017 /* MechanismMath.swift */; };
+		FB0000000000000000000018 /* ProceduralTextures.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000018 /* ProceduralTextures.swift */; };
+		FB0000000000000000000019 /* MechanismSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000019 /* MechanismSceneView.swift */; };
+		FB0000000000000000000020 /* MechanismMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000020 /* MechanismMathTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,6 +56,10 @@
 		FA0000000000000000000014 /* GiftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftView.swift; sourceTree = "<group>"; };
 		FA0000000000000000000015 /* MelodyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MelodyTests.swift; sourceTree = "<group>"; };
 		FA0000000000000000000016 /* PlaybackMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackMathTests.swift; sourceTree = "<group>"; };
+		FA0000000000000000000017 /* MechanismMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MechanismMath.swift; sourceTree = "<group>"; };
+		FA0000000000000000000018 /* ProceduralTextures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProceduralTextures.swift; sourceTree = "<group>"; };
+		FA0000000000000000000019 /* MechanismSceneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MechanismSceneView.swift; sourceTree = "<group>"; };
+		FA0000000000000000000020 /* MechanismMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MechanismMathTests.swift; sourceTree = "<group>"; };
 		D1A00000000000000000000B /* DuoMusicBox.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DuoMusicBox.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D1A00000000000000000000C /* DuoMusicBoxTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DuoMusicBoxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -133,6 +141,9 @@
 				FA0000000000000000000012 /* ComposeView.swift */,
 				FA0000000000000000000013 /* LibraryView.swift */,
 				FA0000000000000000000014 /* GiftView.swift */,
+				FA0000000000000000000017 /* MechanismMath.swift */,
+				FA0000000000000000000018 /* ProceduralTextures.swift */,
+				FA0000000000000000000019 /* MechanismSceneView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -142,6 +153,7 @@
 			children = (
 				FA0000000000000000000015 /* MelodyTests.swift */,
 				FA0000000000000000000016 /* PlaybackMathTests.swift */,
+				FA0000000000000000000020 /* MechanismMathTests.swift */,
 			);
 			path = DuoMusicBoxTests;
 			sourceTree = "<group>";
@@ -258,6 +270,9 @@
 				FB0000000000000000000012 /* ComposeView.swift in Sources */,
 				FB0000000000000000000013 /* LibraryView.swift in Sources */,
 				FB0000000000000000000014 /* GiftView.swift in Sources */,
+				FB0000000000000000000017 /* MechanismMath.swift in Sources */,
+				FB0000000000000000000018 /* ProceduralTextures.swift in Sources */,
+				FB0000000000000000000019 /* MechanismSceneView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -267,6 +282,7 @@
 			files = (
 				FB0000000000000000000015 /* MelodyTests.swift in Sources */,
 				FB0000000000000000000016 /* PlaybackMathTests.swift in Sources */,
+				FB0000000000000000000020 /* MechanismMathTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -299,8 +315,8 @@
 					"$(inherited)",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-		SDKROOT = iphoneos;
-		SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -322,8 +338,8 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-		SDKROOT = iphoneos;
-		SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -345,8 +361,8 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-		SDKROOT = iphoneos;
-		SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -372,8 +388,8 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-		SDKROOT = iphoneos;
-		SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -395,8 +411,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-		SDKROOT = iphoneos;
-		SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -419,8 +435,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-		SDKROOT = iphoneos;
-		SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
