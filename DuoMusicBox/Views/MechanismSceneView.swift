@@ -117,6 +117,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private var drumMesh: SCNNode!
     private let pinGroup = SCNNode()
     private let ringGroup = SCNNode()
+    private var edgeRingNodes: [SCNNode] = []
     private var bigGearGroup: SCNNode!
     private var smallGearGroup: SCNNode!
     private var governorGroup: SCNNode!
@@ -153,6 +154,8 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     // 临时诊断开关（云端截图定位异常亮线用；无参数启动时恒为 false，诊断完即移除）
     private let debugTopView = ProcessInfo.processInfo.arguments.contains("DBG_TOP")
     private let debugHideDrum = ProcessInfo.processInfo.arguments.contains("DBG_HIDE_DRUM")
+    private let debugHideEdge = ProcessInfo.processInfo.arguments.contains("DBG_HIDE_EDGE")
+    private let debugHideRings = ProcessInfo.processInfo.arguments.contains("DBG_HIDE_RINGS")
     private var editing = false
     private var toggleHandler: ((Int, Int) -> Void)?
 
@@ -198,6 +201,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         view.addGestureRecognizer(tap)
         startParallaxMotion()
         if debugHideDrum { drumGroup.isHidden = true }
+        if debugHideEdge { for n in edgeRingNodes { n.isHidden = true } }
     }
 
     func detach() {
@@ -400,6 +404,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             ring.eulerAngles.y = Float.pi / 2
             ring.position = SCNVector3(Float(side) * (length / 2 - 0.03), 0, 0)
             drumGroup.addChildNode(ring)
+            edgeRingNodes.append(ring)
         }
 
         drumGroup.addChildNode(pinGroup)
@@ -657,7 +662,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             }
             lastMelody = melody
         }
-        ringGroup.isHidden = !isEditing
+        ringGroup.isHidden = !isEditing || debugHideRings
 
         if triggeredPitches != lastTriggeredPitches {
             for (i, material) in toothMaterials.enumerated() {
