@@ -15,6 +15,8 @@ public struct MusicBoxView: View {
     @State private var mode: Mode = .listen
     @State private var currentMelody: Melody = Melody.twinkleTwinkle
     @State private var draft: Melody = Melody.makeBlank(name: "我的旋律")
+    /// 上发条钥匙的累计转角（WindingControl 回调写入，3D 场景读取呈现，两边同一手势来源）。
+    @State private var windingKeyAngle: Double = 0
 
     public init() {}
 
@@ -141,31 +143,26 @@ public struct MusicBoxView: View {
 
     private var listenContent: some View {
         VStack(spacing: 10) {
-            // 滚筒 + 音梳：位置固定，永不与下方的齿轮/发条互换。
+            // 机械主体：Phase 2 起由 SceneKit 3D 场景统一呈现——
+            // 音梳在上、滚筒居中、齿轮与发条在下，位置关系与 Phase 1 严格一致，永不互换。
             ZStack {
                 WoodPanel(cornerRadius: 14, inner: true)
-                CylinderView(melody: currentMelody,
-                             rotationDegrees: playback.cylinderRotation,
-                             currentStep: playback.currentStep,
-                             triggeredPitches: triggeredPitches,
-                             isEditing: false)
-                    .padding(10)
+                MechanismSceneView(melody: currentMelody,
+                                   playback: playback,
+                                   rotationDegrees: playback.cylinderRotation,
+                                   triggeredPitches: triggeredPitches,
+                                   springCharge: playback.springCharge,
+                                   windingKeyAngle: windingKeyAngle,
+                                   isEditing: false)
+                    .padding(6)
             }
-            .frame(height: 236)
+            .frame(height: 252)
 
-            // 齿轮组（左）与发条钥匙（右）
-            HStack(alignment: .top, spacing: 12) {
-                VStack(spacing: 2) {
-                    GearView(rotationDegrees: playback.cylinderRotation)
-                    Text("传动齿轮 · 调速器")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Theme.creamDim)
-                }
-                .frame(maxWidth: .infinity)
-                WindingControl(playback: playback, audio: playback.audio)
-                    .frame(maxWidth: .infinity)
+            // 发条钥匙实体控件（上链手势的唯一入口）：居中呈现，
+            // 其转角经回调同步给上方 3D 场景中的钥匙与发条量表。
+            WindingControl(playback: playback, audio: playback.audio) { angle in
+                windingKeyAngle = angle
             }
-            .padding(.horizontal, 4)
 
             transportControls
         }
