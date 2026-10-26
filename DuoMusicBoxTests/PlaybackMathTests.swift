@@ -66,4 +66,15 @@ final class PlaybackMathTests: XCTestCase {
         XCTAssertEqual(PlaybackMath.effectiveTempo(baseTempo: 100, springCharge: 0.8), 100, accuracy: 1e-9)
         XCTAssertEqual(PlaybackMath.effectiveTempo(baseTempo: 100, springCharge: 0), 0, accuracy: 1e-9)
     }
+
+    /// 速度区间（用户定版 100–200）：滑杆与装载旋律共用同一钳制口径。
+    func testTempoRangeClamp() {
+        XCTAssertEqual(PlaybackEngine.tempoRange.lowerBound, 100)
+        XCTAssertEqual(PlaybackEngine.tempoRange.upperBound, 200)
+        XCTAssertEqual(PlaybackEngine.clampedTempo(72), 100, "慢板预置（如平安夜 72）抬到下限")
+        XCTAssertEqual(PlaybackEngine.clampedTempo(100), 100)
+        XCTAssertEqual(PlaybackEngine.clampedTempo(160), 160)
+        XCTAssertEqual(PlaybackEngine.clampedTempo(200), 200)
+        XCTAssertEqual(PlaybackEngine.clampedTempo(240), 200, "超上限钳到 200")
+    }
 }
