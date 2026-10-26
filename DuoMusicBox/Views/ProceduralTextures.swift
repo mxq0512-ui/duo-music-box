@@ -431,8 +431,11 @@ public enum ProceduralTextures {
                     let t = Double(i) / Double(steps)
                     let angle = t * Double.pi * 2 * 4.5
                     let radius = 12 + t * 104
-                    let p = CGPoint(x: center.x + offset.x + CGFloat(cos(angle) * radius),
-                                    y: center.y + offset.y + CGFloat(sin(angle) * radius))
+                    // 同 WindingControl 的教训：显式 Double 防 cos/sin 重载歧义。
+                    let dx: Double = cos(angle) * radius
+                    let dy: Double = sin(angle) * radius
+                    let p = CGPoint(x: center.x + offset.x + CGFloat(dx),
+                                    y: center.y + offset.y + CGFloat(dy))
                     if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
                 }
                 return path

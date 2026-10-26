@@ -28,48 +28,24 @@ public struct WindingControl: View {
     }
 
     public var body: some View {
-        VStack(spacing: 6) {
-            GeometryReader { geo in
-                let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-                ZStack {
-                    barrelArt
-                    keyBow
-                        .rotationEffect(.degrees(keyAngle))
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in rotate(to: value.location, center: center) }
-                        .onEnded { _ in lastDragAngle = nil }
-                )
+        // 只负责钥匙本体（发条筒 + 蝶形钥匙）；储能进度条由欣赏页布局单独排布
+        // 在控制行下方（视觉大改后钥匙居中、圆键环绕，进度条独立成行更舒展）。
+        GeometryReader { geo in
+            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
+            ZStack {
+                barrelArt
+                keyBow
+                    .rotationEffect(.degrees(keyAngle))
             }
-            .frame(width: 104, height: 104)
-
-            // 储能表：加长黄铜填充条（96 → 216）+ 百分比，读数一眼到位。
-            VStack(spacing: 3) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3.5)
-                            .fill(Color.black.opacity(0.45))
-                        RoundedRectangle(cornerRadius: 3.5)
-                            .fill(Theme.brassGradient)
-                            .frame(width: geo.size.width * CGFloat(playback.springCharge))
-                        RoundedRectangle(cornerRadius: 3.5)
-                            .fill(Color.white.opacity(0.22))
-                            .frame(height: 2)
-                            .padding(.horizontal, 2)
-                            .frame(maxHeight: .infinity, alignment: .top)
-                            .padding(.top, 1)
-                    }
-                }
-                .frame(height: 7)
-                Text("发条 \(Int((playback.springCharge * 100).rounded()))% · 拖动钥匙上链")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Theme.creamDim)
-            }
-            .frame(width: 216)
+            .frame(width: geo.size.width, height: geo.size.height)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in rotate(to: value.location, center: center) }
+                    .onEnded { _ in lastDragAngle = nil }
+            )
         }
+        .frame(width: 104, height: 104)
     }
 
     /// 发条筒（静态底座）：外圈棘轮齿 + 拉丝筒面 + 螺旋发条纹 + 中心轴座。
@@ -191,15 +167,19 @@ private struct SpiralShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let maxR = min(rect.width, rect.height) / 2 - 1
+        let maxR = Double(min(rect.width, rect.height) / 2 - 1)
         let minR = maxR * 0.14
         let steps = 240
         for i in 0...steps {
             let t = Double(i) / Double(steps)
             let angle = t * turns * 2 * Double.pi
             let r = minR + (maxR - minR) * t
-            let p = CGPoint(x: center.x + CGFloat(cos(angle) * r),
-                            y: center.y + CGFloat(sin(angle) * r))
+            // 显式标注 Double：cos/sin 在 CoreGraphics 与 Darwin 各有一份，
+            // 不标注时编译器判歧义（CI Build #50 实测报错），此处强制走 Double 版。
+            let dx: Double = cos(angle) * r
+            let dy: Double = sin(angle) * r
+            let p = CGPoint(x: center.x + CGFloat(dx),
+                            y: center.y + CGFloat(dy))
             if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
         }
         return path
