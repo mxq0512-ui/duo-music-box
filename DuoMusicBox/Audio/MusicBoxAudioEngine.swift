@@ -62,7 +62,8 @@ public final class MusicBoxAudioEngine: ObservableObject {
     /// 放钉/拆钉的清脆 click（编曲操作反馈）。
     public func playClick() { scheduleMechanical(clickBuffer) }
 
-    /// 上发条棘轮声（WindingControl 每转过约 30° 触发一次）。
+    /// 上发条棘轮声：单个齿的"咔哒"（WindingControl 每转过约 15° 触发一次，
+    /// 声响密度严格跟随手的转速，声音与动作同步）。
     public func playRatchet() { scheduleMechanical(ratchetBuffer) }
 
     /// 开盒/合盒的轻响。
@@ -137,20 +138,20 @@ public final class MusicBoxAudioEngine: ObservableObject {
     }
 
     /// ratchet：一串 7 个递减的小咔哒，间隔 28ms，模拟棘轮逐齿滑过。
+    /// 单个棘轮齿的"咔哒"：约 45ms。
+    /// 旧版是一次触发预合成 7 连响（0.24 秒声列），声列按固定节奏走完，与手的实际
+    /// 转速脱节——慢转时声音先跑完、快转时又叠在一起，用户反馈"上发条不同步声音"。
+    /// 改为一齿一响：噪声冲击（齿尖弹入齿根）+ 2.1kHz 金属余响（棘爪簧片），
+    /// 转得快响得密、停手即无声，声音严格由动作驱动。
     private func synthesizeRatchet() -> AVAudioPCMBuffer {
         let sr = format.sampleRate
-        let count = Int(sr * 0.24)
+        let count = Int(sr * 0.045)
         var samples = [Float](repeating: 0, count: count)
-        let clicks = 7
-        for c in 0..<clicks {
-            let start = Int(Double(c) * 0.028 * sr)
-            let amp = 0.55 * (1.0 - Double(c) / Double(clicks) * 0.45)
-            let len = Int(0.008 * sr)
-            for j in 0..<len where start + j < count {
-                let t = Double(j) / sr
-                let v = Double(Self.pseudoNoise((start + j) &+ 8192)) * exp(-t / 0.0025)
-                samples[start + j] += Float(amp * v)
-            }
+        for i in 0..<count {
+            let t = Double(i) / sr
+            let impact = Double(Self.pseudoNoise(i &+ 8192)) * exp(-t / 0.0022)
+            let ring = 0.35 * sin(2 * Double.pi * 2100 * t) * exp(-t / 0.009)
+            samples[i] = Float(0.55 * impact + ring)
         }
         return makeBuffer(samples: samples)
     }
