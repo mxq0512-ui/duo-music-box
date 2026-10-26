@@ -127,7 +127,13 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private var toothMaterials: [SCNMaterial] = []
 
     // 共享几何/材质（全场景各一份，节点只引用不复制）
-    private let pinGeometry = SCNSphere(radius: 0.048)
+    // 音钉（珍藏级一轮）：半径 0.048 → 0.05、段数提到 28（球面更圆、镜面高光更整），
+    // 材质改用专用抛光黄铜（见 buildScene 的 pinMaterial），不再与钥匙共用。
+    private let pinGeometry: SCNSphere = {
+        let sphere = SCNSphere(radius: 0.05)
+        sphere.segmentCount = 28
+        return sphere
+    }()
     private let stepRingGeometry = SCNBox(width: CGFloat(MechanismMath.drumLength),
                                           height: 0.02, length: 0.008, chamferRadius: 0)
     private let columnRingGeometry = SCNTorus(ringRadius: CGFloat(MechanismMath.drumRadius) + 0.002,
@@ -222,7 +228,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private func buildScene() {
         let root = scene.rootNode
         scene.lightingEnvironment.contents = ProceduralTextures.environment
-        scene.lightingEnvironment.intensity = 1.05
+        // 珍藏级一轮：环境图升级为双柔光箱（1024×512），强度 1.05 → 1.15，
+        // 让鼓面高光流得动、音钉与抛光件的镜面反射更挺。
+        scene.lightingEnvironment.intensity = 1.15
 
         // —— 材质（色值与 Theme 一一对应，保证 2D/3D 同一视觉语言）——
         let brass = pbrMaterial(color: (0.83, 0.65, 0.30), metalness: 1.0, roughness: 0.30)
@@ -238,20 +246,24 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let gearBrass = pbrMaterial(color: (0.74, 0.57, 0.27), metalness: 1.0, roughness: 0.34)
         let grooveBrass = pbrMaterial(color: (0.38, 0.27, 0.10), metalness: 0.9, roughness: 0.50)
         // 钢件（音梳/转轴/螺丝）：冷色调抛光钢，与暖黄铜形成材质对照。
-        let steel = pbrMaterial(color: (0.70, 0.75, 0.85), metalness: 1.0, roughness: 0.18)
+        // 珍藏级一轮：粗糙度 0.18 → 0.13，梳齿与转轴近镜面，冷光刃口更利。
+        let steel = pbrMaterial(color: (0.70, 0.75, 0.85), metalness: 1.0, roughness: 0.13)
         let steelDark = pbrMaterial(color: (0.40, 0.44, 0.53), metalness: 0.95, roughness: 0.38)
         // 滚筒：侧面用拉丝黄铜贴图（底色烤入 diffuse）+ 拉丝粗糙度图（0.25–0.45），
         // 端盖用径向拉丝贴图。SCNCylinder 材质槽位顺序为 [侧面, 顶盖, 底盖]，
         // 两端盖同用径向纹，左右对称无方向问题。
         let drumSide = SCNMaterial()
         drumSide.lightingModel = .physicallyBased
-        drumSide.diffuse.contents = ProceduralTextures.brushedBrass
+        // 珍藏级一轮：鼓面改用滚筒专用拉丝（两端渐暗 + 细划痕 + 氧化斑）
+        // 并叠加拉丝法线图，掠射光下出现环向沟纹光泽。
+        drumSide.diffuse.contents = ProceduralTextures.brushedBrassDrum
         drumSide.roughness.contents = ProceduralTextures.brushedRoughness
+        drumSide.normal.contents = ProceduralTextures.brushedNormal
         drumSide.metalness.contents = NSNumber(value: 1.0)
         let drumCap = SCNMaterial()
         drumCap.lightingModel = .physicallyBased
         drumCap.diffuse.contents = ProceduralTextures.radialBrass
-        drumCap.roughness.contents = NSNumber(value: 0.24)
+        drumCap.roughness.contents = NSNumber(value: 0.19) // 端盖更抛光，与鼓面拉丝拉开层次
         drumCap.metalness.contents = NSNumber(value: 1.0)
         // 发条筒侧面：同一套拉丝，深一号烤色。
         let barrelSide = SCNMaterial()
@@ -264,7 +276,10 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         wood.diffuse.contents = ProceduralTextures.walnut
         wood.roughness.contents = ProceduralTextures.walnutRoughness
         wood.metalness.contents = NSNumber(value: 0.0)
-        pinGeometry.firstMaterial = brassBright
+        // 音钉专用抛光黄铜：比 brassBright 更亮、粗糙度 0.22 → 0.11 近镜面——
+        // 每颗钉在鼓面上是一个独立的小亮点，滚动时逐颗闪烁，是滚筒活过来的关键。
+        let pinMaterial = pbrMaterial(color: (1.0, 0.90, 0.58), metalness: 1.0, roughness: 0.11)
+        pinGeometry.firstMaterial = pinMaterial
 
         let drumY: Float = 0.25
         let radius = Float(MechanismMath.drumRadius)
@@ -361,11 +376,41 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         root.addChildNode(contactShadow)
 
         // —— 机芯框架：左右黄铜端板 + 转轴 ——
+        // 珍藏级一轮：端板不再是一块闷暗平板——朝内/外的大面用径向拉丝（与端盖同
+        // 纹理语言），朝观者的前缘用抛光黄铜条抓光；转轴穿板处加抛光轴套（轴承盖），
+        // 前缘上下各一颗带槽螺丝，与齿轮/音梳的零件语言统一。
+        // SCNBox 材质槽位顺序：[+x, -x, +y, -y, +z, -z]。
+        let plateFace = SCNMaterial()
+        plateFace.lightingModel = .physicallyBased
+        plateFace.diffuse.contents = ProceduralTextures.radialBrass
+        plateFace.roughness.contents = NSNumber(value: 0.30)
+        plateFace.metalness.contents = NSNumber(value: 1.0)
+        let plateEdge = pbrMaterial(color: (0.83, 0.65, 0.30), metalness: 1.0, roughness: 0.26)
         for side in [-1, 1] {
             let plate = SCNNode(geometry: SCNBox(width: 0.09, height: 1.7, length: 1.7, chamferRadius: 0.02))
-            plate.geometry?.firstMaterial = brassDark
+            plate.geometry?.materials = [plateFace, plateFace, brassDark, brassDark, plateEdge, brassDark]
             plate.position = SCNVector3(Float(side) * 1.86, 0.1, 0)
             root.addChildNode(plate)
+
+            // 轴套：转轴穿出端板处的抛光圆盖（鼓轴在 y = drumY）。
+            let collar = SCNNode(geometry: SCNCylinder(radius: 0.13, height: 0.07))
+            collar.geometry?.firstMaterial = brassBright
+            collar.eulerAngles.z = Float.pi / 2
+            collar.position = SCNVector3(Float(side) * 1.83, drumY, 0)
+            root.addChildNode(collar)
+
+            // 前缘螺丝：圆头（深钢）+ 一字槽（恒定深色小盒假造），与齿轮螺丝同规格。
+            for dy in [-0.62, 0.62] {
+                let screw = SCNNode(geometry: SCNCylinder(radius: 0.032, height: 0.026))
+                screw.geometry?.firstMaterial = steelDark
+                screw.eulerAngles.x = Float.pi / 2
+                screw.position = SCNVector3(Float(side) * 1.86, Float(0.1 + dy), 0.855)
+                root.addChildNode(screw)
+                let slot = SCNNode(geometry: SCNBox(width: 0.052, height: 0.011, length: 0.012, chamferRadius: 0))
+                slot.geometry?.firstMaterial = ringMaterial
+                slot.position = SCNVector3(Float(side) * 1.86, Float(0.1 + dy), 0.87)
+                root.addChildNode(slot)
+            }
         }
 
         // —— 滚筒组（整体绕 X 轴旋转，是唯一的"转子"）——
