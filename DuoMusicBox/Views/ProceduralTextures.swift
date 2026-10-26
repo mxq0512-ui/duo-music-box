@@ -40,6 +40,9 @@ public enum ProceduralTextures {
     /// 端盖径向拉丝（256×256）：同心环微扰 + 中心亮、边缘沉的径向渐变，
     /// 假造车床端面的旋转纹路，用于滚筒端盖与发条筒盖面。
     public static let radialBrass: UIImage = makeRadialBrassTexture()
+    /// 发条筒盖：径向拉丝底 + 阿基米德螺旋槽（发条卷的俯视纹），暗槽压一遍、
+    /// 亮边错位再描一遍，读作刻进金属的螺旋沟。
+    public static let barrelLid: UIImage = makeBarrelLidTexture()
 
     /// 接触阴影（256×256，带 alpha）：中心深、边缘透明的径向渐变黑，
     /// 贴在底座顶面给机芯压出"落地"的暗斑，与方向光投影叠加使用。
@@ -395,6 +398,57 @@ public enum ProceduralTextures {
                                       endCenter: center, endRadius: 128,
                                       options: [.drawsAfterEndLocation])
             }
+        }
+    }
+
+    /// 发条筒盖纹理：先铺径向拉丝底（与 makeRadialBrassTexture 同法），再刻螺旋槽。
+    private static func makeBarrelLidTexture() -> UIImage {
+        let size = CGSize(width: 256, height: 256)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { ctx in
+            let cg = ctx.cgContext
+            let center = CGPoint(x: 128, y: 128)
+            cg.setFillColor(UIColor(red: 0.84, green: 0.66, blue: 0.32, alpha: 1).cgColor)
+            cg.fill(CGRect(origin: .zero, size: size))
+            var r = 128.0
+            var ring = 0
+            while r > 2 {
+                let delta = (hash(ring &* 17 &+ 23) - 0.5) * 0.14
+                cg.setStrokeColor(delta >= 0
+                    ? UIColor.white.withAlphaComponent(CGFloat(delta)).cgColor
+                    : UIColor.black.withAlphaComponent(CGFloat(-delta)).cgColor)
+                cg.setLineWidth(1.6)
+                cg.strokeEllipse(in: CGRect(x: center.x - CGFloat(r), y: center.y - CGFloat(r),
+                                            width: CGFloat(r) * 2, height: CGFloat(r) * 2))
+                r -= 2.2
+                ring += 1
+            }
+            // 螺旋槽：阿基米德螺旋（4.5 圈，半径 12 → 116），与真实发条卷同构。
+            func spiralPath(offset: CGPoint) -> CGPath {
+                let path = CGMutablePath()
+                let steps = 340
+                for i in 0...steps {
+                    let t = Double(i) / Double(steps)
+                    let angle = t * Double.pi * 2 * 4.5
+                    let radius = 12 + t * 104
+                    let p = CGPoint(x: center.x + offset.x + CGFloat(cos(angle) * radius),
+                                    y: center.y + offset.y + CGFloat(sin(angle) * radius))
+                    if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+                }
+                return path
+            }
+            // 亮边（错位 1.2pt 先描）+ 暗槽（压上），形成刻槽的浮雕感。
+            cg.addPath(spiralPath(offset: CGPoint(x: 1.2, y: 1.2)))
+            cg.setStrokeColor(UIColor.white.withAlphaComponent(0.20).cgColor)
+            cg.setLineWidth(1.4)
+            cg.strokePath()
+            cg.addPath(spiralPath(offset: .zero))
+            cg.setStrokeColor(UIColor.black.withAlphaComponent(0.38).cgColor)
+            cg.setLineWidth(3.0)
+            cg.strokePath()
+            // 中心轴孔：压暗的小圆，与量表指针/钥匙轴对应。
+            cg.setFillColor(UIColor.black.withAlphaComponent(0.35).cgColor)
+            cg.fillEllipse(in: CGRect(x: center.x - 9, y: center.y - 9, width: 18, height: 18))
         }
     }
 
