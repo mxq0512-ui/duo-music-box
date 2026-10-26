@@ -7,6 +7,24 @@ import XCTest
 /// 就能保证"3D 里的钉、声音、编曲器里的格"是同一套数学。
 final class MechanismMathTests: XCTestCase {
 
+    /// 同步不变量（2026-10-26 真机不同步回归）：第 s 步发声的一刻
+    /// （stepFloat == s），该步音钉的世界角度必须恰为梳齿接触角。
+    /// 世界角度 = 本地角度 − 鼓体欧拉角（MechanismMath 注释约定）。
+    func testPinReachesCombContactAngleExactlyWhenItSounds() {
+        for stepCount in [16, 64] {
+            for s in [0, 1, 7, stepCount / 2, stepCount - 1] {
+                let rotation = PlaybackMath.rotationDegrees(stepFloat: Double(s), stepCount: stepCount)
+                let world = MechanismMath.pinAngleRadians(step: s, stepCount: stepCount)
+                    - MechanismMath.drumEulerX(rotationDegrees: rotation)
+                var degrees = (world * 180 / Double.pi).truncatingRemainder(dividingBy: 360)
+                if degrees < 0 { degrees += 360 }
+                XCTAssertEqual(degrees, MechanismMath.combContactAngleDegrees, accuracy: 1e-9,
+                               "step \(s)/\(stepCount): pin world angle \(degrees) != contact angle")
+            }
+        }
+    }
+
+
     // MARK: - 音钉落位
 
     func testPinAngle() {
