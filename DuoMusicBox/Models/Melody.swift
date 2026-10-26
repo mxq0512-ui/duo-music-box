@@ -264,11 +264,197 @@ public extension Melody {
         events: [])
 
     /// 首次启动播种到旋律库的预置集合。
-    static var presets: [Melody] { [twinkleTwinkle, odeToJoy, blankTemplate] }
+    static var presets: [Melody] { [twinkleTwinkle, odeToJoy] + libraryCatalog + [blankTemplate] }
 
     /// 生成一份带新 id 的空白旋律（用户新建编曲用），默认 64 步。
     static func makeBlank(name: String, stepCount: Int = 64, tempoBPM: Double = 100) -> Melody {
         Melody(id: UUID(), name: name, tempoBPM: tempoBPM, stepCount: stepCount, events: [])
+    }
+
+
+    // MARK: - 旋律库目录（+100 首，Phase 4 扩容）
+
+    /// 旋律库分类（旋律库页分组标题）。经典预置（小星星/欢乐颂/空白模板）不归类，
+    /// 在旋律库页单独成组。
+    public enum Category: String, CaseIterable {
+        case children = "儿歌童谣"
+        case chineseFolk = "中国民歌"
+        case worldFolk = "世界民歌"
+        case classical = "古典名曲"
+        case festival = "节日祝福"
+    }
+
+    /// 一首目录旋律的谱面规格。pattern 每字符一步（八分音符）：
+    /// '1'…'8' = 唱名 Do…Do′（pitchIndex = 数字 - 1）；'-' = 延长前一音；'.' = 休止；空格忽略。
+    /// 谱面表由脚本验证（步数 16…64、字符合法）后生成，见 docs/gen_catalog.py。
+    /// 部分名曲原调超出一个八度，编配时把个别高音折回本八度（八音盒传统做法）。
+    private struct LibrarySpec {
+        let name: String
+        let category: Category
+        let tempo: Double
+        let pattern: String
+    }
+
+    private static let librarySpecs: [LibrarySpec] = [
+        LibrarySpec(name: "玛丽有只小羊羔", category: .children, tempo: 100, pattern: "3-2-1-2-3-3-3--- 2-2-2---3-5-5--- 3-2-1-2-3-3-3-3- 2-2-3-2-1-------"),
+        LibrarySpec(name: "生日快乐", category: .children, tempo: 92, pattern: "5 5 6-5-8-7--- 5 5 6-5-2-8--- 5 5 5-3-8-7-6--- 4-4-3-8-2-8---"),
+        LibrarySpec(name: "两只老虎", category: .children, tempo: 112, pattern: "1-2-3-1- 1-2-3-1- 3-4-5--- 3-4-5--- 565431 565431 1-5-1---"),
+        LibrarySpec(name: "伦敦桥", category: .children, tempo: 100, pattern: "5-6-5-4-3-4-5--- 2-3-4--- 3-4-5--- 5-6-5-4-3-4-5--- 2---5---3-5-1---"),
+        LibrarySpec(name: "老麦克唐纳", category: .children, tempo: 108, pattern: "5-5-5-2-3-3-2--- 7-7-6-6-5------- 2-5-5-5-2-3-3-2--- 7-7-6-6-5-----"),
+        LibrarySpec(name: "扬基歌", category: .children, tempo: 116, pattern: "11231325 112312-- 11235321 712-1123 13251123 1-------"),
+        LibrarySpec(name: "粉刷匠", category: .children, tempo: 108, pattern: "5-3-5-3-5-3-1--- 2-4-3-2-5------- 2-4-3-2-1-------"),
+        LibrarySpec(name: "找朋友", category: .children, tempo: 100, pattern: "5-6-5-3-5-3-1--- 2-3-4-3-2-3-1--- 5-6-5-3-5-3-1--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "卖报歌", category: .children, tempo: 104, pattern: "1-3-2-3-5--- 3-2-3--- 1-3-2-3-1--- 3-3-2-2-3-5-6--- 5-3-2-1-2-1---"),
+        LibrarySpec(name: "小毛驴", category: .children, tempo: 96, pattern: "1-1-3-3-5-5-3--- 4-4-3-3-2-2-1--- 2-2-3-3-5-5-3--- 2-2-3-2-1-------"),
+        LibrarySpec(name: "划船歌", category: .children, tempo: 92, pattern: "1-1-1-2-3--- 3-2-3-4-5--- 8-8-8-5-5-5- 3-3-3-1-1-1- 5-4-3-2-1-------"),
+        LibrarySpec(name: "丢手绢", category: .children, tempo: 104, pattern: "5-6-5-3-2-3-5--- 5-6-5-3-2-3-1--- 2-3-5-3-2-3-5--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "小兔子乖乖", category: .children, tempo: 96, pattern: "5-3-5-3-5-6-5--- 3-5-3-2-1-2-1--- 5-3-5-3-5-6-5--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "世上只有妈妈好", category: .children, tempo: 84, pattern: "6-5-3-5-6----- 5-3-2-3-5----- 6-5-3-5-6----- 5-3-2-3-1-------"),
+        LibrarySpec(name: "上学歌", category: .children, tempo: 100, pattern: "1-3-5-3-1-3-5--- 5-6-5-3-2-3-1--- 1-3-5-3-1-3-5--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "小白船", category: .children, tempo: 84, pattern: "3-5-8-5-6-5-3--- 2-3-5-3-2-3-2--- 3-5-8-5-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "一分钱", category: .children, tempo: 100, pattern: "5-3-5-3-5-6-5-3- 2-3-5-3-2-1-2--- 5-3-5-3-5-6-5-3- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "春天在哪里", category: .children, tempo: 104, pattern: "5-6-5-3-5-3-1--- 2-3-2-1-2-3-5--- 5-6-5-3-5-3-1--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "数蛤蟆", category: .children, tempo: 100, pattern: "5-5-3-5-6-5-3--- 2-3-5-3-2-1-2--- 5-5-3-5-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "拔萝卜", category: .children, tempo: 100, pattern: "5-3-5-3-5-5-3--- 2-3-5-5-3-2-1--- 5-3-5-3-5-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "茉莉花", category: .chineseFolk, tempo: 76, pattern: "3-3-5-6-8-8-6-5-6----- 5-5-3-2-3-5----- 5-6-5-3-2-3-2-1---------"),
+        LibrarySpec(name: "康定情歌", category: .chineseFolk, tempo: 84, pattern: "6-5-6-8-2-8-6--- 5-6-5-3-2-3----- 6-5-6-8-2-8-6--- 5-6-5-6-5-------"),
+        LibrarySpec(name: "阿里山的姑娘", category: .chineseFolk, tempo: 92, pattern: "5-3-5-6-5-3-2-3- 5-3-5-6-5-3-2-1- 3-5-6-5-3-5-6--- 5-3-2-3-1-------"),
+        LibrarySpec(name: "凤阳花鼓", category: .chineseFolk, tempo: 100, pattern: "5-6-5-3-2-3-5--- 3-2-3-5-3-2-1--- 5-6-5-3-2-3-5--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "在那遥远的地方", category: .chineseFolk, tempo: 80, pattern: "5-6-8-6-5----- 3-2-3-5----- 5-6-8-6-5----- 3-2-1-2-1-------"),
+        LibrarySpec(name: "东方红", category: .chineseFolk, tempo: 88, pattern: "5-5-6-8-2-8-6--- 5-5-6-5-3-2-1--- 5-5-6-8-2-8-6--- 5-6-5-3-2-1-----"),
+        LibrarySpec(name: "南泥湾", category: .chineseFolk, tempo: 84, pattern: "5-6-5-3-2-1-2-3--- 5-6-5-3-2-3-1- 3-5-6-5-3-5-6--- 5-3-2-1-2-1-----"),
+        LibrarySpec(name: "兰花花", category: .chineseFolk, tempo: 76, pattern: "6-5-6-8-6-5-3--- 2-3-5-3-2-3----- 6-5-6-8-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "采茶歌", category: .chineseFolk, tempo: 108, pattern: "3-5-6-5-3-5-3--- 2-1-2-3-5-3-2--- 3-5-6-5-3-5-3--- 2-1-2-3-2-1-----"),
+        LibrarySpec(name: "紫竹调", category: .chineseFolk, tempo: 84, pattern: "5-6-8-6-5-6-3--- 2-1-2-3-5-3-2--- 5-6-8-6-5-6-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "月光光", category: .chineseFolk, tempo: 80, pattern: "5-3-5-6-5-3-2-3- 2-3-5-3-2-1-2-3- 5-3-5-6-5-3-2-3- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "沂蒙山小调", category: .chineseFolk, tempo: 84, pattern: "5-6-8-6-5-6-5-3- 2-3-5-3-2-1-2--- 5-6-8-6-5-6-5-3- 2-3-2-1-2-1---"),
+        LibrarySpec(name: "无锡景", category: .chineseFolk, tempo: 76, pattern: "3-5-6-5-3-5-6--- 5-3-2-3-5-3-2--- 3-5-6-8-6-5-6--- 5-3-2-3-1-------"),
+        LibrarySpec(name: "孟姜女", category: .chineseFolk, tempo: 76, pattern: "5-3-5-6-5-3-2-1- 2-3-5-3-2-1-2--- 5-3-5-6-5-3-2-1- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "浏阳河", category: .chineseFolk, tempo: 84, pattern: "3-5-6-8-6-5-6--- 5-3-2-3-5----- 3-5-6-8-6-5-6--- 5-3-2-3-1-------"),
+        LibrarySpec(name: "山丹丹开花红艳艳", category: .chineseFolk, tempo: 88, pattern: "6-8-6-5-6-5-3--- 2-3-5-3-2-3----- 6-8-6-5-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "敖包相会", category: .chineseFolk, tempo: 84, pattern: "5-6-8-8-6-5-6--- 3-5-6-5-3-2-1--- 5-6-8-8-6-5-6--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "乌苏里船歌", category: .chineseFolk, tempo: 88, pattern: "6-5-6-8-6-5-3-5- 6-5-6-8-6-5-3--- 2-3-5-6-5-3-2--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "达坂城的姑娘", category: .chineseFolk, tempo: 96, pattern: "5-5-6-5-3-5-6--- 2-3-5-3-2-1-2--- 5-5-6-5-3-5-6--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "青春舞曲", category: .chineseFolk, tempo: 104, pattern: "5-3-5-3-6-5-3--- 2-1-2-3-5-3-2--- 5-3-5-3-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "红河谷", category: .worldFolk, tempo: 84, pattern: "1-3-5---5-3-5-8- 6-5-6-8-5----- 1-3-5---5-3-5-3- 2-3-2-1-2-1-------"),
+        LibrarySpec(name: "故乡的亲人", category: .worldFolk, tempo: 80, pattern: "5-3-5-8-6-5-3--- 2-3-2-1-2----- 5-3-5-8-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "噢苏珊娜", category: .worldFolk, tempo: 104, pattern: "12355653 12333212 4-4-6-6-6-5-3-1- 2-3-3-2-1-2-1-----"),
+        LibrarySpec(name: "樱花", category: .worldFolk, tempo: 72, pattern: "6-6-7---6-6-7--- 6-3-2-3-4-3-2--- 6-6-7---6-6-7--- 4-3-2-3-6-------"),
+        LibrarySpec(name: "故乡（日本）", category: .worldFolk, tempo: 80, pattern: "5-5-3-5-6-5-3--- 2-3-2-1-2-3----- 5-5-3-5-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "红蜻蜓", category: .worldFolk, tempo: 80, pattern: "5-6-8---6-5-3--- 2-3-5---3------- 5-6-8---6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "荒城之月", category: .worldFolk, tempo: 72, pattern: "3-----3-2-3-5--- 6-5-3-2-3------- 5-----5-3-5-6--- 5-3-2-3-6-------"),
+        LibrarySpec(name: "斯卡布罗集市", category: .worldFolk, tempo: 76, pattern: "2---2---5--- 5---4-5-6--- 5---4-3-2--- 6---5-4-3--- 4---3-2-------"),
+        LibrarySpec(name: "我的邦妮", category: .worldFolk, tempo: 88, pattern: "5-3-2-1-2-3----- 3-2-1-2-3-5----- 8-6-5-3-2-3-5--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "友谊地久天长", category: .worldFolk, tempo: 84, pattern: "1-5---5-6-8-6- 8-2-8-6-5----- 3-5-8-6-5-3-2--- 2-5-3-2-1-------"),
+        LibrarySpec(name: "野玫瑰", category: .worldFolk, tempo: 88, pattern: "1-3-5-5-3-5-8--- 6-5-6-5-3----- 1-3-5-5-3-5-8--- 6-8-5-3-1-------"),
+        LibrarySpec(name: "念故乡", category: .worldFolk, tempo: 76, pattern: "3-5-5-3-2-1-2-3- 5-3-----2-1----- 3-5-5-3-2-1-2-3- 2-1---------"),
+        LibrarySpec(name: "天鹅", category: .worldFolk, tempo: 72, pattern: "3-5-8---7-6-5--- 3-5-6-5-3------- 3-5-8---7-6-5--- 4-3-2-3-1-------"),
+        LibrarySpec(name: "G弦上的咏叹调", category: .worldFolk, tempo: 68, pattern: "8-------6---5--- 4-3-2-3-5------- 8-------6---5--- 4-3-2-1-2-1-----"),
+        LibrarySpec(name: "卡农", category: .worldFolk, tempo: 92, pattern: "8-7-6-5-4-3-4-5- 3-2-4-3-2-7-2-1- 5-4-3-2-3-2-1-2- 3-2-1-7-1-2-3---"),
+        LibrarySpec(name: "蓝色多瑙河", category: .worldFolk, tempo: 76, pattern: "1---3---5---5--- 3-----3----- 7-----7----- 5-----5-----"),
+        LibrarySpec(name: "拉德茨基进行曲", category: .worldFolk, tempo: 100, pattern: "5-5-5-8---3-5-8--- 5-5-5-8---3-2-1- 1-3-5-8-5-3-5--- 3-2-1-2-1-----"),
+        LibrarySpec(name: "婚礼进行曲（门德尔松）", category: .worldFolk, tempo: 84, pattern: "1---5---8---5--- 8-6-5-4-3-4-5--- 1---5---8---5--- 4-3-2-3-1-------"),
+        LibrarySpec(name: "胡桃夹子进行曲", category: .worldFolk, tempo: 104, pattern: "5-3-5-3-6-5-3--- 2-3-4-3-2-1-2--- 5-3-5-3-6-5-3--- 4-3-2-1-2-1-----"),
+        LibrarySpec(name: "喀秋莎", category: .worldFolk, tempo: 88, pattern: "6-7-8-7-6-5-6--- 3-5-6-5-3-2-3--- 6-7-8-7-6-5-6--- 5-3-2-3-6-------"),
+        LibrarySpec(name: "莫斯科郊外的晚上", category: .worldFolk, tempo: 80, pattern: "3-5-6-5-3-2-1-2- 3---5-6-5-3-2--- 1-2-3-5-6-5-3--- 2-1-2-------"),
+        LibrarySpec(name: "红莓花儿开", category: .worldFolk, tempo: 84, pattern: "3-5-6---5-3-2--- 3-5-6-5-3------- 3-5-6---5-3-2--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "小步舞曲", category: .classical, tempo: 88, pattern: "2-5-6-7-8---2-5-5----- 3-8-2-3-4---2-5-5-----"),
+        LibrarySpec(name: "莫扎特小夜曲", category: .classical, tempo: 96, pattern: "1-5-8-5-8-3-5- 8-5-3-2-4-3-2--- 1-5-8-5-8-3-5- 3-2-4-3-2-1-----"),
+        LibrarySpec(name: "C大调奏鸣曲", category: .classical, tempo: 92, pattern: "1-3-5-3-6-5-3--- 4-3-2-3-1---2--- 1-3-5-3-6-5-3--- 4-3-2-3-1-------"),
+        LibrarySpec(name: "月光奏鸣曲（主题）", category: .classical, tempo: 72, pattern: "683683683683 583583583583 683683683683 273273273273"),
+        LibrarySpec(name: "悲怆奏鸣曲", category: .classical, tempo: 72, pattern: "5-3-5-8-6-5-3--- 4-3-2-3-5----- 5-3-5-8-6-5-3--- 4-3-2-3-1-------"),
+        LibrarySpec(name: "摇篮曲（勃拉姆斯）", category: .classical, tempo: 84, pattern: "3---5---8--- 6---5-4-3--- 2---3---5--- 4---3-2-1-------"),
+        LibrarySpec(name: "梦幻曲", category: .classical, tempo: 76, pattern: "5-8-8-6-5-4-3--- 4-3-4-5----- 5-8-8-6-5-4-3--- 4-3-2-3-1-------"),
+        LibrarySpec(name: "春之声圆舞曲", category: .classical, tempo: 88, pattern: "8---6-5-6-8--- 5---3-2-3-5--- 8---6-5-6-8--- 6---5-3-2-1-------"),
+        LibrarySpec(name: "溜冰圆舞曲", category: .classical, tempo: 84, pattern: "5---8---7--- 6---5-6-5-3--- 2---3---4--- 3---2-1-2-------"),
+        LibrarySpec(name: "睡美人圆舞曲", category: .classical, tempo: 84, pattern: "3---5---5--- 6---5-3-2-3--- 4---4---3--- 2---3-2-1-------"),
+        LibrarySpec(name: "天鹅湖主题", category: .classical, tempo: 72, pattern: "7-6-7-3-2-3-6--- 5-6-5-3-2-3----- 7-6-7-3-2-3-6--- 5-6-5-3-2-1-----"),
+        LibrarySpec(name: "小狗圆舞曲", category: .classical, tempo: 120, pattern: "87678767 56567656 87678767 67676767 87678767 56567656 87678767 676-----"),
+        LibrarySpec(name: "斗牛士之歌", category: .classical, tempo: 96, pattern: "1-1-2-3-4-3-2-3- 1---5-5-6-5-3--- 2-3-4-3-2-3-1--- 5-3-2-1-2-1-----"),
+        LibrarySpec(name: "凯旋进行曲", category: .classical, tempo: 92, pattern: "1-3-5-8-5-3-5--- 1-3-5-8-6-5-3--- 1-3-5-8-5-3-5--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "威廉退尔序曲", category: .classical, tempo: 112, pattern: "5-5-5-3-5-8--- 5-5-5-3-2-1-2--- 5-5-5-3-5-8--- 5-3-2-1-2-1-----"),
+        LibrarySpec(name: "军队进行曲", category: .classical, tempo: 100, pattern: "1-3-5-8-5-3-1--- 2-3-4-3-2-1-2--- 1-3-5-8-5-3-1--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "春（维瓦尔第）", category: .classical, tempo: 96, pattern: "1-5-5-3-5-8-5--- 3-5-3-2-1-2-1--- 1-5-5-3-5-8-5--- 3-2-1-2-1-------"),
+        LibrarySpec(name: "圣母颂", category: .classical, tempo: 76, pattern: "1-3-5-8-6-5-3--- 4-3-2-3-1----- 1-3-5-8-6-5-3--- 4-3-2-3-1-------"),
+        LibrarySpec(name: "摇篮曲（舒伯特）", category: .classical, tempo: 80, pattern: "3-5-8-6-5-3--- 2-3-2-1-2----- 3-5-8-6-5-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "花之圆舞曲", category: .classical, tempo: 84, pattern: "3---5---8--- 6---5-3-2-3--- 4---3---5--- 3---2-1-2-------"),
+        LibrarySpec(name: "铃儿响叮当", category: .festival, tempo: 104, pattern: "3-3-3---3-3-3--- 3-5-1-2-3----- 4-4-4-4-4-3-3-3- 3-2-2-3-2---5-----"),
+        LibrarySpec(name: "平安夜", category: .festival, tempo: 76, pattern: "5--65-3-- 5--65-3-- 2--2--8-- 7--7--5-- 6--6--876-5--65-3--"),
+        LibrarySpec(name: "我们祝你圣诞快乐", category: .festival, tempo: 100, pattern: "5-1-1-2-1-7-6-6--- 6-2-2-3-2-1-7-5--- 5-3-3-4-3-2-1-6- 5-5-2-7-5---"),
+        LibrarySpec(name: "新年好", category: .festival, tempo: 100, pattern: "1-1-1-3-5---3-5- 1-2-3---1-1-1-3- 5---3-2-3-2-1-----"),
+        LibrarySpec(name: "恭喜恭喜", category: .festival, tempo: 96, pattern: "5-6-5-3-5-8--- 6-5-6-5-3----- 5-6-5-3-5-8--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "贺新年", category: .festival, tempo: 100, pattern: "5-5-6-5-3-5-1--- 2-3-2-1-2-3-1--- 5-5-6-5-3-5-1--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "财神到", category: .festival, tempo: 100, pattern: "5-6-8-6-5-6-3--- 2-3-5-3-2-1-2--- 5-6-8-6-5-6-3--- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "步步高", category: .festival, tempo: 112, pattern: "5-6-8-6-5-6-3-5- 6-8-6-5-3-2-3--- 5-6-8-6-5-6-3-5- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "金蛇狂舞", category: .festival, tempo: 112, pattern: "5-6-5-6-8-6-5-6- 3-5-3-2-1-2-3--- 5-6-5-6-8-6-5-6- 3-2-1-2-1-------"),
+        LibrarySpec(name: "彩云追月", category: .festival, tempo: 80, pattern: "6-5-6-8-6-5-3-5- 6---2-3-2-1-2--- 6-5-6-8-6-5-3-5- 2-3-2-1-2-1-----"),
+        LibrarySpec(name: "春节序曲（主题）", category: .festival, tempo: 104, pattern: "6-6-5-6-8---5-6- 5-3-2-3-1---6-6- 5-6-8---6-5-6- 5-3-2-3-1-------"),
+        LibrarySpec(name: "听啊天使高声唱", category: .festival, tempo: 92, pattern: "5-5-5-2-5-5-5--- 8-8-7-6-5-6-5--- 5-5-5-2-5-5-5--- 8-7-6-5-4-3-1---"),
+        LibrarySpec(name: "第一首诺埃尔", category: .festival, tempo: 84, pattern: "3-2-1-2-3-4-5--- 5-6-5-4-3-4-3--- 2-1-2-3---3--- 5-6-5-4-3-2-1---"),
+        LibrarySpec(name: "齐来崇拜", category: .festival, tempo: 88, pattern: "5-----5-2-5-8--- 6-5-4-3-2-3-1--- 5-----5-2-5-8--- 6-5-4-3-2-1-----"),
+        LibrarySpec(name: "普世欢腾", category: .festival, tempo: 96, pattern: "8---7-6-5---4--- 3-2-1---5-6-6-7- 7-8-----8-7-6-5- 4-3-2-3-1-------"),
+        LibrarySpec(name: "毕业歌", category: .festival, tempo: 96, pattern: "1-3-5-8-6-5-3--- 2-3-4-3-2-1-2--- 1-3-5-8-6-5-3--- 5-3-2-1-2-1-----"),
+        LibrarySpec(name: "四季歌", category: .festival, tempo: 88, pattern: "5-6-5-3-5-6-8--- 6-5-6-5-3-2-1--- 5-6-5-3-5-6-8--- 6-5-3-2-1-------"),
+        LibrarySpec(name: "雪绒花", category: .festival, tempo: 76, pattern: "3-5-8---7-5----- 6-8-6-5-3----- 3-5-8---7-5----- 4-3-2-3-1-------"),
+    ]
+
+    /// 100 首目录旋律，确定性 ID（44444444-…-序号）：老用户升级时 MelodyStore
+    /// 按「从未见过的 ID」增量补入，已删除的不会被强行塞回。
+    public static let libraryCatalog: [Melody] = librarySpecs.enumerated().map { index, spec in
+        buildLibraryMelody(index: index, spec: spec)
+    }
+
+    private static func buildLibraryMelody(index: Int, spec: LibrarySpec) -> Melody {
+        var events: [NoteEvent] = []
+        var step = 0
+        var pendingPitch = -1
+        var pendingStep = 0
+        var pendingDuration = 0
+        func flush() {
+            if pendingPitch >= 0 {
+                events.append(NoteEvent(pitchIndex: pendingPitch, step: pendingStep,
+                                        durationSteps: pendingDuration))
+            }
+            pendingPitch = -1
+            pendingDuration = 0
+        }
+        for ch in spec.pattern where !ch.isWhitespace {
+            if ch == "-" {
+                if pendingPitch >= 0 { pendingDuration += 1 }
+                step += 1
+            } else if ch == "." {
+                flush()
+                step += 1
+            } else if let degree = ch.wholeNumberValue, (1...8).contains(degree) {
+                flush()
+                pendingPitch = degree - 1
+                pendingStep = step
+                pendingDuration = 1
+                step += 1
+            }
+        }
+        flush()
+        let id = UUID(uuidString: String(format: "44444444-0000-4000-8000-%012d", index + 1))!
+        return Melody(id: id, name: spec.name, tempoBPM: spec.tempo, stepCount: step, events: events)
+    }
+
+    /// 目录分类查询（旋律库页分组用）；非目录旋律返回 nil。
+    private static let catalogCategoryByID: [UUID: Category] = {
+        var dict: [UUID: Category] = [:]
+        for (melody, spec) in zip(libraryCatalog, librarySpecs) {
+            dict[melody.id] = spec.category
+        }
+        return dict
+    }()
+
+    public static func catalogCategory(id: UUID) -> Category? { catalogCategoryByID[id] }
+
+    /// 谱例（欣赏页「照着钉」图例 + 编曲页参考谱的同一份名单）：
+    /// 挑最耳熟、钉位分布清晰的几首，渲染成音钉图供照着摆钉。
+    public static var scoreExamples: [Melody] {
+        let pickedNames = ["玛丽有只小羊羔", "生日快乐", "茉莉花", "卡农", "铃儿响叮当"]
+        return [twinkleTwinkle, odeToJoy]
+            + pickedNames.compactMap { name in libraryCatalog.first { $0.name == name } }
     }
 
     // MARK: - 旧版预置迁移（Phase 1/2 的 16 步版本 → Phase 3 的 64 步版本）
