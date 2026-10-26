@@ -249,6 +249,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // 珍藏级一轮：粗糙度 0.18 → 0.13，梳齿与转轴近镜面，冷光刃口更利。
         let steel = pbrMaterial(color: (0.70, 0.75, 0.85), metalness: 1.0, roughness: 0.13)
         let steelDark = pbrMaterial(color: (0.40, 0.44, 0.53), metalness: 0.95, roughness: 0.38)
+        // 音梳专用钢：比通用抛光钢暗一号、粗一号（0.13 → 0.30）——梳横梁正对
+        // 镜头与环境反射，用 steel 时在 HDR 下烧成亮白塑料条（r12 截图实测）。
+        let combSteel = pbrMaterial(color: (0.52, 0.56, 0.64), metalness: 1.0, roughness: 0.30)
         // 滚筒：侧面用拉丝黄铜贴图（底色烤入 diffuse）+ 拉丝粗糙度图（0.25–0.45），
         // 端盖用径向拉丝贴图。SCNCylinder 材质槽位顺序为 [侧面, 顶盖, 底盖]，
         // 两端盖同用径向纹，左右对称无方向问题。
@@ -406,25 +409,28 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // 盒盖：自背板上部向后倾约 17° 的整板，下缘压在背板面上（z −0.925，
         // 比背板前面 −0.99 探出 0.065），下缘一条黄铜接缝条 + 两枚铰链
         // （轴筒 + 叶片）交代它与盒体的连接；上部伸出画面外，是"开着的盖"。
+        // 盖组整体上移 0.30（r12 实测修正）：原下缘 y≈1.15 低于"越过滚筒顶
+        // （1.28 @ z 0）看向 z −0.93"的视线高（≈1.37），接缝与铰链全被滚筒
+        // 挡死；上移后下缘 1.45、铰链 1.43 恰好探出滚筒轮廓之上。
         let lid = SCNNode(geometry: SCNBox(width: 5.6, height: 2.4, length: 0.16, chamferRadius: 0.03))
         lid.geometry?.firstMaterial = woodBackdrop
-        lid.position = SCNVector3(0, 2.30, -1.28)
+        lid.position = SCNVector3(0, 2.60, -1.28)
         lid.eulerAngles.x = -0.30
         root.addChildNode(lid)
         let lidSeam = SCNNode(geometry: SCNBox(width: 5.6, height: 0.045, length: 0.03, chamferRadius: 0))
         lidSeam.geometry?.firstMaterial = brassDark
-        lidSeam.position = SCNVector3(0, 1.16, -0.915)
+        lidSeam.position = SCNVector3(0, 1.46, -0.915)
         lidSeam.eulerAngles.x = -0.30
         root.addChildNode(lidSeam)
         for side in [-1, 1] {
             let hingeBarrel = SCNNode(geometry: SCNCylinder(radius: 0.045, height: 0.5))
             hingeBarrel.geometry?.firstMaterial = brassBright
             hingeBarrel.eulerAngles.z = Float.pi / 2
-            hingeBarrel.position = SCNVector3(Float(side) * 1.3, 1.13, -0.90)
+            hingeBarrel.position = SCNVector3(Float(side) * 1.3, 1.43, -0.90)
             root.addChildNode(hingeBarrel)
             let hingeLeaf = SCNNode(geometry: SCNBox(width: 0.34, height: 0.15, length: 0.02, chamferRadius: 0))
             hingeLeaf.geometry?.firstMaterial = brassBright
-            hingeLeaf.position = SCNVector3(Float(side) * 1.3, 1.02, -0.975)
+            hingeLeaf.position = SCNVector3(Float(side) * 1.3, 1.32, -0.975)
             root.addChildNode(hingeLeaf)
         }
 
@@ -558,8 +564,10 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             leg.position = SCNVector3(Float(side) * 1.5, -1.46, 1.35)
             root.addChildNode(leg)
         }
-        let combBase = SCNNode(geometry: SCNBox(width: 3.6, height: 0.17, length: 0.34, chamferRadius: 0.02))
-        combBase.geometry?.firstMaterial = steel
+        // 横梁削薄（0.17×0.34 → 0.12×0.26）并换音梳专用哑光钢：
+        // r12 截图里它是一条亮白大板，压住下方齿轮系——薄 + 暗之后齿轮露出。
+        let combBase = SCNNode(geometry: SCNBox(width: 3.6, height: 0.12, length: 0.26, chamferRadius: 0.02))
+        combBase.geometry?.firstMaterial = combSteel
         combBase.position = SCNVector3(0, -0.56, 1.33)
         combBase.eulerAngles.x = -0.30
         root.addChildNode(combBase)
@@ -567,7 +575,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             let screw = SCNNode(geometry: SCNCylinder(radius: 0.035, height: 0.03))
             screw.geometry?.firstMaterial = steelDark
             screw.eulerAngles.x = Float.pi / 2 - 0.30
-            screw.position = SCNVector3(Float(side) * 1.55, -0.53, 1.50)
+            screw.position = SCNVector3(Float(side) * 1.55, -0.53, 1.465)
             root.addChildNode(screw)
         }
 
@@ -579,8 +587,10 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let colW = MechanismMath.drumLength / Double(Melody.pitchCount)
         for p in 0..<Melody.pitchCount {
             let toothLength = 0.47 - Double(p) * 0.017 // 低音齿长、高音齿短（真实音梳规律）
-            let toothMaterial = (steel.copy() as? SCNMaterial) ?? steel
-            let mesh = SCNNode(geometry: SCNBox(width: 0.17, height: 0.024,
+            let toothMaterial = (combSteel.copy() as? SCNMaterial) ?? combSteel
+            // 齿宽 0.17 → 0.115、厚 0.024 → 0.020：r12 里梳齿像灰色琴键大板，
+            // 改细后齿缝拉开，才读得出"梳"的细密感（参考图的关键特征）。
+            let mesh = SCNNode(geometry: SCNBox(width: 0.115, height: 0.020,
                                                 length: CGFloat(toothLength), chamferRadius: 0.004))
             mesh.geometry?.firstMaterial = toothMaterial
             mesh.position = SCNVector3(0, 0, Float(-toothLength / 2)) // 几何挂在齿根之后，枢轴在齿根
