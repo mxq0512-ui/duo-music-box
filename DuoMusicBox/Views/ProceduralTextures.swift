@@ -330,8 +330,8 @@ public enum ProceduralTextures {
             cg.setFillColor(UIColor(red: 0.5, green: 0.5, blue: 1.0, alpha: 1).cgColor)
             cg.fill(CGRect(origin: .zero, size: size))
             for y in 0..<1024 {
-                var g = 128.0 + (hash(y &* 13 &+ 41) - 0.5) * 26
-                if y % 23 == 7 { g -= 26 }
+                var g = 128.0 + (hash(y &* 13 &+ 41) - 0.5) * 18
+                if y % 23 == 7 { g -= 14 }
                 let clamped = min(255, max(0, g))
                 cg.setFillColor(UIColor(red: 0.5, green: CGFloat(clamped / 255.0), blue: 1.0, alpha: 1).cgColor)
                 cg.fill(CGRect(x: 0, y: CGFloat(y), width: size.width, height: 1))
