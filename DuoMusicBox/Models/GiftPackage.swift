@@ -1,8 +1,11 @@
 import Foundation
+import CoreTransferable
+import UniformTypeIdentifiers
 
-/// 数字礼物的数据模型（Phase 1 只做本地数据与草稿存储）。
-/// 内含完整旋律快照：Phase 4 的网页礼物只需要把一个 GiftPackage 编码成链接载荷，
-/// 收礼人端无 App 也能重建旋律——所以快照必须自包含，不能只存 melodyId 引用。
+/// 数字礼物的数据模型。
+/// 内含完整旋律快照：礼物文件（.json）经微信/隔空投送/信息分享，对方在礼物页
+/// 「导入礼物」即可打开——所以快照必须自包含，不能只存 melodyId 引用。
+/// 网页礼物（收礼人无 App 也能打开）仍是后续线上阶段。
 public struct GiftPackage: Codable, Equatable, Identifiable {
     public var id: UUID
     /// 来源旋律在旋律库中的 id（可能已被删除，故另存快照与名称）。
@@ -25,6 +28,33 @@ public struct GiftPackage: Codable, Equatable, Identifiable {
         self.title = title
         self.message = message
         self.createdAt = createdAt
+    }
+
+    // MARK: - 分享 / 导入（礼物文件）
+
+    /// 编码为可分享的礼物文件数据。编码策略与 GiftStore 持久化一致
+    /// （iso8601 日期 + sortedKeys），草稿文件与分享文件可互通。
+    public func exportData() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(self)
+    }
+
+    /// 从礼物文件数据解码（导入对方分享来的礼物）。
+    public static func decode(data: Data) throws -> GiftPackage {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(GiftPackage.self, from: data)
+    }
+}
+
+/// 系统分享面板支持：ShareLink 直接分享 GiftPackage，导出为礼物文件（.json）。
+extension GiftPackage: Transferable {
+    public static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .json) { gift in
+            try gift.exportData()
+        }
     }
 }
 
