@@ -144,6 +144,55 @@ final class MelodyTests: XCTestCase {
     }
 }
 
+final class MelodyLibraryTests: XCTestCase {
+
+    // MARK: - Phase 4：100 首旋律库目录
+
+    func testLibraryCatalogHas100UniqueValidTunes() {
+        let catalog = Melody.libraryCatalog
+        XCTAssertEqual(catalog.count, 100)
+        XCTAssertEqual(Set(catalog.map(\.id)).count, 100, "目录 ID 必须唯一（确定性 ID 按序号生成）")
+        XCTAssertEqual(Set(catalog.map(\.name)).count, 100, "目录名称必须唯一")
+        XCTAssertEqual(Melody.presets.count, 103, "预置总数 = 小星星 + 欢乐颂 + 100 首目录 + 空白模板")
+        for tune in catalog {
+            XCTAssertTrue((16...64).contains(tune.stepCount), "\(tune.name) 步数越界")
+            XCTAssertGreaterThanOrEqual(tune.events.count, 6, "\(tune.name) 音钉过少")
+            for e in tune.events {
+                XCTAssertTrue((0..<8).contains(e.pitchIndex), "\(tune.name) 音高越界")
+                XCTAssertTrue((0..<tune.stepCount).contains(e.step), "\(tune.name) 步位越界")
+                XCTAssertLessThanOrEqual(e.step + e.durationSteps, tune.stepCount,
+                                         "\(tune.name) 音符尾巴超出全曲")
+            }
+        }
+        // 五大分类齐全且各有一定规模
+        for category in Melody.Category.allCases {
+            let count = catalog.filter { Melody.catalogCategory(id: $0.id) == category }.count
+            XCTAssertGreaterThanOrEqual(count, 10, "分类 \(category.rawValue) 只有 \(count) 首")
+        }
+        XCTAssertNil(Melody.catalogCategory(id: Melody.twinkleTwinkle.id), "经典预置不归目录分类")
+        XCTAssertNil(Melody.catalogCategory(id: UUID()), "用户自编旋律不归目录分类")
+    }
+
+    func testLibraryParserSpotChecks() {
+        // 《玛丽有只小羊羔》开头：Mi Re Do Re Mi Mi Mi——（3 2 1 2 3 3 3）
+        let mary = Melody.libraryCatalog.first { $0.name == "玛丽有只小羊羔" }
+        XCTAssertNotNil(mary)
+        XCTAssertEqual(mary?.events.prefix(7).map(\.pitchIndex), [2, 1, 0, 1, 2, 2, 2])
+        XCTAssertEqual(mary?.events.prefix(7).map(\.step), [0, 2, 4, 6, 8, 10, 12])
+        XCTAssertEqual(mary?.events[6].durationSteps, 4, "句尾长音 3--- 应解析为 4 步")
+        // 《平安夜》开头附点节奏：Sol. La Sol Mi. → 首音时长 3 步
+        let silent = Melody.libraryCatalog.first { $0.name == "平安夜" }
+        XCTAssertEqual(silent?.events.first?.pitchIndex, 4)
+        XCTAssertEqual(silent?.events.first?.durationSteps, 3)
+    }
+
+    func testScoreExamplesResolve() {
+        let examples = Melody.scoreExamples
+        XCTAssertEqual(examples.count, 7, "谱例 = 小星星/欢乐颂 + 5 首点名目录曲")
+        XCTAssertTrue(examples.allSatisfy { !$0.events.isEmpty })
+    }
+}
+
 final class MelodyStoreTests: XCTestCase {
     private var tempDir: URL!
 
@@ -186,6 +235,31 @@ final class MelodyStoreTests: XCTestCase {
         let reloaded = MelodyStore(documentsDirectory: tempDir)
         XCTAssertTrue(reloaded.melodies.isEmpty, "文件已存在时不应重新播种预置")
     }
+
+    /// Phase 4 升级路径：老用户库里只有旧预置时，应一次性补入 100 首新目录；
+    /// 旧预置里被删掉的（欢乐颂）不复活，新目录里被删掉的也不复活。
+    func testUpgradeAppendsCatalogAndRespectsDeletions() throws {
+        let key = "duo.knownPresetIDs.v1"
+        UserDefaults.standard.set(["11111111-1111-1111-1111-111111111111",
+                                   "22222222-2222-2222-2222-222222222222",
+                                   "33333333-3333-3333-3333-333333333333"], forKey: key)
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode([Melody.twinkleTwinkle])
+        try data.write(to: tempDir.appendingPathComponent("duo-melodies.json"))
+
+        let store = MelodyStore(documentsDirectory: tempDir)
+        XCTAssertEqual(store.melodies.count, 1 + Melody.libraryCatalog.count, "升级应补入全部新目录")
+        XCTAssertNotNil(store.melody(id: Melody.twinkleTwinkle.id))
+        XCTAssertNil(store.melody(id: Melody.odeToJoy.id), "老用户已删掉的旧预置不应被复活")
+
+        let victim = Melody.libraryCatalog[0]
+        store.delete(id: victim.id)
+        let reloaded = MelodyStore(documentsDirectory: tempDir)
+        XCTAssertNil(reloaded.melody(id: victim.id), "用户删掉的目录旋律不应复活")
+        XCTAssertEqual(reloaded.melodies.count, Melody.libraryCatalog.count)
+    }
 }
 
 final class GiftPackageTests: XCTestCase {
@@ -203,5 +277,15 @@ final class GiftPackageTests: XCTestCase {
         XCTAssertEqual(gift, decoded)
         XCTAssertEqual(decoded.melodyId, Melody.twinkleTwinkle.id)
         XCTAssertEqual(decoded.melodySnapshot.events.count, 28, "礼物必须自带完整旋律快照")
+    }
+
+    /// Phase 4 分享：exportData（分享文件）→ decode（导入）必须无损往返。
+    func testGiftShareExportImportRoundTrip() throws {
+        let gift = GiftPackage(melody: Melody.odeToJoy,
+                               title: "给你的礼物",
+                               message: "生日快乐",
+                               createdAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let decoded = try GiftPackage.decode(data: gift.exportData())
+        XCTAssertEqual(gift, decoded)
     }
 }
