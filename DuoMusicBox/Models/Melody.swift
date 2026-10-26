@@ -89,7 +89,7 @@ public struct Melody: Codable, Equatable, Identifiable {
     public init(id: UUID = UUID(),
                 name: String,
                 tempoBPM: Double = 100,
-                stepCount: Int = 16,
+                stepCount: Int = 64,
                 events: [NoteEvent] = []) {
         self.id = id
         self.name = name
@@ -169,14 +169,17 @@ public struct Melody: Codable, Equatable, Identifiable {
 // MARK: - 预置旋律（全部公版旋律 / 程序内写死，无任何外部素材）
 
 public extension Melody {
-    /// 《小星星》前 16 步：C C G G A A G——
-    /// 一步 = 八分音符，四分音符占 2 步，结尾长音 G 占 4 步，正好填满 16 步。
+    /// 《小星星》完整版（公版）：四句 × 16 步 = 64 步。
+    /// 一步 = 八分音符，四分音符占 2 步，每句结尾长音占 4 步。
+    /// 句一 C C G G A A G——；句二 F F E E D D C——；
+    /// 句三 G G F F E E D——；句四 G G F F E E D——。
     static let twinkleTwinkle = Melody(
         id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
         name: "小星星",
         tempoBPM: 100,
-        stepCount: 16,
+        stepCount: 64,
         events: [
+            // 句一（0–15）
             NoteEvent(pitchIndex: 0, step: 0, durationSteps: 2),   // C5
             NoteEvent(pitchIndex: 0, step: 2, durationSteps: 2),   // C5
             NoteEvent(pitchIndex: 4, step: 4, durationSteps: 2),   // G5
@@ -184,15 +187,41 @@ public extension Melody {
             NoteEvent(pitchIndex: 5, step: 8, durationSteps: 2),   // A5
             NoteEvent(pitchIndex: 5, step: 10, durationSteps: 2),  // A5
             NoteEvent(pitchIndex: 4, step: 12, durationSteps: 4),  // G5 长音
+            // 句二（16–31）
+            NoteEvent(pitchIndex: 3, step: 16, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 3, step: 18, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 2, step: 20, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 2, step: 22, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 1, step: 24, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 1, step: 26, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 0, step: 28, durationSteps: 4),  // C5 长音
+            // 句三（32–47）
+            NoteEvent(pitchIndex: 4, step: 32, durationSteps: 2),  // G5
+            NoteEvent(pitchIndex: 4, step: 34, durationSteps: 2),  // G5
+            NoteEvent(pitchIndex: 3, step: 36, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 3, step: 38, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 2, step: 40, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 2, step: 42, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 1, step: 44, durationSteps: 4),  // D5 长音
+            // 句四（48–63）
+            NoteEvent(pitchIndex: 4, step: 48, durationSteps: 2),  // G5
+            NoteEvent(pitchIndex: 4, step: 50, durationSteps: 2),  // G5
+            NoteEvent(pitchIndex: 3, step: 52, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 3, step: 54, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 2, step: 56, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 2, step: 58, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 1, step: 60, durationSteps: 4),  // D5 长音
         ])
 
-    /// 《欢乐颂》片段（贝多芬，公版）：E E F G G F E D，每音 2 步，共 16 步。
+    /// 《欢乐颂》完整主题（贝多芬，公版）：两乐句 × 32 步 = 64 步，每音 2 步。
+    /// 句一 E E F G G F E D C C D E E D D——；句二 E E F G G F E D C C D E D C C——。
     static let odeToJoy = Melody(
         id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
-        name: "欢乐颂（片段）",
+        name: "欢乐颂",
         tempoBPM: 104,
-        stepCount: 16,
+        stepCount: 64,
         events: [
+            // 句一（0–31）
             NoteEvent(pitchIndex: 2, step: 0, durationSteps: 2),   // E5
             NoteEvent(pitchIndex: 2, step: 2, durationSteps: 2),   // E5
             NoteEvent(pitchIndex: 3, step: 4, durationSteps: 2),   // F5
@@ -201,21 +230,98 @@ public extension Melody {
             NoteEvent(pitchIndex: 3, step: 10, durationSteps: 2),  // F5
             NoteEvent(pitchIndex: 2, step: 12, durationSteps: 2),  // E5
             NoteEvent(pitchIndex: 1, step: 14, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 0, step: 16, durationSteps: 2),  // C5
+            NoteEvent(pitchIndex: 0, step: 18, durationSteps: 2),  // C5
+            NoteEvent(pitchIndex: 1, step: 20, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 2, step: 22, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 2, step: 24, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 1, step: 26, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 1, step: 28, durationSteps: 4),  // D5 长音
+            // 句二（32–63）
+            NoteEvent(pitchIndex: 2, step: 32, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 2, step: 34, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 3, step: 36, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 4, step: 38, durationSteps: 2),  // G5
+            NoteEvent(pitchIndex: 4, step: 40, durationSteps: 2),  // G5
+            NoteEvent(pitchIndex: 3, step: 42, durationSteps: 2),  // F5
+            NoteEvent(pitchIndex: 2, step: 44, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 1, step: 46, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 0, step: 48, durationSteps: 2),  // C5
+            NoteEvent(pitchIndex: 0, step: 50, durationSteps: 2),  // C5
+            NoteEvent(pitchIndex: 1, step: 52, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 2, step: 54, durationSteps: 2),  // E5
+            NoteEvent(pitchIndex: 1, step: 56, durationSteps: 2),  // D5
+            NoteEvent(pitchIndex: 0, step: 58, durationSteps: 2),  // C5
+            NoteEvent(pitchIndex: 0, step: 60, durationSteps: 4),  // C5 长音
         ])
 
-    /// 空白模板：8 音高 × 16 步，无音钉。
+    /// 空白模板：8 音高 × 64 步，无音钉（Phase 3 起新编曲一律 64 步）。
     static let blankTemplate = Melody(
+        id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+        name: "空白模板",
+        tempoBPM: 100,
+        stepCount: 64,
+        events: [])
+
+    /// 首次启动播种到旋律库的预置集合。
+    static var presets: [Melody] { [twinkleTwinkle, odeToJoy, blankTemplate] }
+
+    /// 生成一份带新 id 的空白旋律（用户新建编曲用），默认 64 步。
+    static func makeBlank(name: String, stepCount: Int = 64, tempoBPM: Double = 100) -> Melody {
+        Melody(id: UUID(), name: name, tempoBPM: tempoBPM, stepCount: stepCount, events: [])
+    }
+
+    // MARK: - 旧版预置迁移（Phase 1/2 的 16 步版本 → Phase 3 的 64 步版本）
+
+    /// Phase 3 之前的预置定义（16 步），逐字保留以便识别「从未被用户改动过」的旧预置。
+    static var legacyPresets: [Melody] { [legacyTwinkle, legacyOde, legacyBlank] }
+
+    private static let legacyTwinkle = Melody(
+        id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+        name: "小星星",
+        tempoBPM: 100,
+        stepCount: 16,
+        events: [
+            NoteEvent(pitchIndex: 0, step: 0, durationSteps: 2),
+            NoteEvent(pitchIndex: 0, step: 2, durationSteps: 2),
+            NoteEvent(pitchIndex: 4, step: 4, durationSteps: 2),
+            NoteEvent(pitchIndex: 4, step: 6, durationSteps: 2),
+            NoteEvent(pitchIndex: 5, step: 8, durationSteps: 2),
+            NoteEvent(pitchIndex: 5, step: 10, durationSteps: 2),
+            NoteEvent(pitchIndex: 4, step: 12, durationSteps: 4),
+        ])
+
+    private static let legacyOde = Melody(
+        id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+        name: "欢乐颂（片段）",
+        tempoBPM: 104,
+        stepCount: 16,
+        events: [
+            NoteEvent(pitchIndex: 2, step: 0, durationSteps: 2),
+            NoteEvent(pitchIndex: 2, step: 2, durationSteps: 2),
+            NoteEvent(pitchIndex: 3, step: 4, durationSteps: 2),
+            NoteEvent(pitchIndex: 4, step: 6, durationSteps: 2),
+            NoteEvent(pitchIndex: 4, step: 8, durationSteps: 2),
+            NoteEvent(pitchIndex: 3, step: 10, durationSteps: 2),
+            NoteEvent(pitchIndex: 2, step: 12, durationSteps: 2),
+            NoteEvent(pitchIndex: 1, step: 14, durationSteps: 2),
+        ])
+
+    private static let legacyBlank = Melody(
         id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
         name: "空白模板",
         tempoBPM: 100,
         stepCount: 16,
         events: [])
 
-    /// 首次启动播种到旋律库的预置集合。
-    static var presets: [Melody] { [twinkleTwinkle, odeToJoy, blankTemplate] }
-
-    /// 生成一份带新 id 的空白旋律（用户新建编曲用）。
-    static func makeBlank(name: String, stepCount: Int = 16, tempoBPM: Double = 100) -> Melody {
-        Melody(id: UUID(), name: name, tempoBPM: tempoBPM, stepCount: stepCount, events: [])
+    /// 把旋律库中「与旧版预置逐字相同」的条目换成现行预置（同 id）。
+    /// 用户改动过的预置（内容与旧定义有任何差异）与用户自建旋律一律原样保留；
+    /// 迁移天然幂等：换完后条目不再等于旧定义，重复调用无副作用。
+    static func refreshingLegacyPresets(_ melodies: [Melody]) -> [Melody] {
+        melodies.map { entry in
+            guard legacyPresets.contains(entry),
+                  let current = presets.first(where: { $0.id == entry.id }) else { return entry }
+            return current
+        }
     }
 }
