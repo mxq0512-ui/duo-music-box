@@ -22,6 +22,14 @@ public enum ProceduralTextures {
     /// 行方向与圆柱 UV 的 v 轴对应——绕鼓一周（u 向）纹理恒定，天然无接缝。
     public static let brushedBrass: UIImage = makeBrushedBrassTexture(base: (0.84, 0.66, 0.31), seed: 11)
 
+    /// 滚筒专用拉丝（珍藏级一轮）：在通用拉丝之上加两端渐暗（鼓面边缘吃光更沉，
+    /// 衬出中段的高光带）+ 更密的细划痕与零星深色氧化斑——真黄铜滚筒的"年资感"。
+    public static let brushedBrassDrum: UIImage = makeBrushedBrassTexture(base: (0.84, 0.66, 0.31), seed: 23, edgeShade: true)
+
+    /// 拉丝法线图（512×512）：把逐行拉丝转成法线扰动（绿通道随行起伏），
+    /// 掠射光下鼓面出现细密的环向沟纹光泽——漫反射贴图给不了的"摸得出的拉丝"。
+    public static let brushedNormal: UIImage = makeBrushedNormalTexture()
+
     /// 同一套拉丝、深一号烤色：发条筒侧面用。
     public static let brushedBrassDark: UIImage = makeBrushedBrassTexture(base: (0.55, 0.40, 0.16), seed: 47)
 
@@ -154,7 +162,7 @@ public enum ProceduralTextures {
     // MARK: - 环境反射图
 
     private static func makeEnvironmentImage() -> UIImage {
-        let size = CGSize(width: 512, height: 256)
+        let size = CGSize(width: 1024, height: 512)
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
             let cg = ctx.cgContext
@@ -189,6 +197,28 @@ public enum ProceduralTextures {
                                       endRadius: size.width * 0.34,
                                       options: [.drawsAfterEndLocation])
             }
+            // 第二只柔光箱（珍藏级一轮）：窄而高的一道竖光（横向压扁的径向渐变），
+            // 与主窗光不同方位——滚筒滚动时两道高光以不同相位流过鼓面，
+            // 是"摄影棚里拍金属"的那种流动感，单光源给不了。
+            let softboxColors = [
+                UIColor.white.withAlphaComponent(0.80).cgColor,
+                UIColor.white.withAlphaComponent(0).cgColor,
+            ] as CFArray
+            if let softbox = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                        colors: softboxColors, locations: [0, 1]) {
+                cg.saveGState()
+                let cx = size.width * 0.28, cy = size.height * 0.34
+                cg.translateBy(x: cx, y: cy)
+                cg.scaleBy(x: 0.42, y: 1.0)
+                cg.translateBy(x: -cx, y: -cy)
+                cg.drawRadialGradient(softbox,
+                                      startCenter: CGPoint(x: cx, y: cy),
+                                      startRadius: 0,
+                                      endCenter: CGPoint(x: cx, y: cy),
+                                      endRadius: size.width * 0.20,
+                                      options: [.drawsAfterEndLocation])
+                cg.restoreGState()
+            }
             // 左下弱冷光团：钢件（音梳/转轴/齿轮螺丝）下缘映出一点冷色，
             // 与暖窗光成对照，也呼应场景里的冷色轮廓光。
             let coolColors = [
@@ -211,7 +241,7 @@ public enum ProceduralTextures {
 
     /// 拉丝底色烤入 diffuse：SceneKit 的 PBR 漫反射槽位只能放一个 contents，
     /// 贴图即颜色本身，故底色作为参数传入（鼓面亮版 / 发条筒深版共用一套算法）。
-    private static func makeBrushedBrassTexture(base: (Double, Double, Double), seed: Int) -> UIImage {
+    private static func makeBrushedBrassTexture(base: (Double, Double, Double), seed: Int, edgeShade: Bool = false) -> UIImage {
         let size = CGSize(width: 512, height: 512)
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
@@ -249,6 +279,59 @@ public enum ProceduralTextures {
                     ? UIColor.white.withAlphaComponent(0.05).cgColor
                     : UIColor.black.withAlphaComponent(0.05).cgColor)
                 cg.fill(CGRect(x: CGFloat(x), y: CGFloat(y), width: CGFloat(len), height: 1))
+            }
+
+            if edgeShade {
+                // 鼓面两端渐暗：v 两端（鼓的左右边缘一带）逐行压沉，
+                // 高光自然收束在中段，端部轮廓更沉稳（真滚筒边缘吃光的样子）。
+                for y in 0..<512 {
+                    let d = min(y, 511 - y)
+                    if d < 46 {
+                        let alpha = 0.13 * (1.0 - Double(d) / 46.0)
+                        cg.setFillColor(UIColor.black.withAlphaComponent(CGFloat(alpha)).cgColor)
+                        cg.fill(CGRect(x: 0, y: CGFloat(y), width: size.width, height: 1))
+                    }
+                }
+                // 更密的一层细划痕（珍藏级的"使用痕迹"要细，不要粗）。
+                for i in 0..<500 {
+                    let x = hash(seed &* 307 &+ i) * 512
+                    let y = hash(seed &* 347 &+ i) * 512
+                    let len = 4 + hash(seed &* 383 &+ i) * 26
+                    let light = hash(seed &* 419 &+ i) > 0.45
+                    cg.setFillColor(light
+                        ? UIColor.white.withAlphaComponent(0.035).cgColor
+                        : UIColor.black.withAlphaComponent(0.035).cgColor)
+                    cg.fill(CGRect(x: CGFloat(x), y: CGFloat(y), width: CGFloat(len), height: 1))
+                }
+                // 零星氧化斑：极小的深色点，密度低、只在细看时可辨。
+                for i in 0..<130 {
+                    let x = hash(seed &* 439 &+ i) * 512
+                    let y = hash(seed &* 463 &+ i) * 512
+                    let w = 1 + hash(seed &* 491 &+ i) * 2.4
+                    cg.setFillColor(UIColor.black.withAlphaComponent(
+                        CGFloat(0.04 + 0.05 * hash(seed &* 521 &+ i))).cgColor)
+                    cg.fill(CGRect(x: CGFloat(x), y: CGFloat(y), width: CGFloat(w), height: 1))
+                }
+            }
+        }
+    }
+
+    /// 拉丝法线图：基底法线 (128,128,255)；逐行让绿通道（切向）随拉丝起伏
+    /// ±18，每约 37 行压一道更深的沟（绿 -34）——与漫反射逐行扰动同为横行结构，
+    /// 掠射时鼓面呈现细密环向沟纹。蓝通道恒 255，红通道恒 128（无轴向倾斜）。
+    private static func makeBrushedNormalTexture() -> UIImage {
+        let size = CGSize(width: 512, height: 512)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { ctx in
+            let cg = ctx.cgContext
+            cg.setFillColor(UIColor(red: 0.5, green: 0.5, blue: 1.0, alpha: 1).cgColor)
+            cg.fill(CGRect(origin: .zero, size: size))
+            for y in 0..<512 {
+                var g = 128.0 + (hash(y &* 13 &+ 41) - 0.5) * 36
+                if y % 37 == 11 { g -= 34 }
+                let clamped = min(255, max(0, g))
+                cg.setFillColor(UIColor(red: 0.5, green: CGFloat(clamped / 255.0), blue: 1.0, alpha: 1).cgColor)
+                cg.fill(CGRect(x: 0, y: CGFloat(y), width: size.width, height: 1))
             }
         }
     }
