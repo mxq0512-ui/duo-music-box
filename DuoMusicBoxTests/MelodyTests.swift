@@ -53,16 +53,16 @@ final class MelodyTests: XCTestCase {
     }
 
     func testAddingNoteOutOfBoundsIgnored() {
-        let base = Melody.blankTemplate // 16 步
+        let base = Melody.blankTemplate // 64 步
         XCTAssertTrue(base.addingNote(pitchIndex: 8, step: 0).events.isEmpty)
-        XCTAssertTrue(base.addingNote(pitchIndex: 0, step: 16).events.isEmpty)
+        XCTAssertTrue(base.addingNote(pitchIndex: 0, step: 64).events.isEmpty)
         XCTAssertTrue(base.addingNote(pitchIndex: -1, step: 0).events.isEmpty)
         XCTAssertTrue(base.addingNote(pitchIndex: 0, step: -1).events.isEmpty)
     }
 
     func testAddingNoteClampsDurationAtEnd() {
-        let m = Melody.blankTemplate.addingNote(pitchIndex: 0, step: 15, durationSteps: 4)
-        XCTAssertEqual(m.note(pitchIndex: 0, step: 15)?.durationSteps, 1)
+        let m = Melody.blankTemplate.addingNote(pitchIndex: 0, step: 63, durationSteps: 4)
+        XCTAssertEqual(m.note(pitchIndex: 0, step: 63)?.durationSteps, 1)
     }
 
     func testEventsAtStepSortedByPitch() {
@@ -86,24 +86,61 @@ final class MelodyTests: XCTestCase {
 
     func testTwinklePresetShape() {
         let m = Melody.twinkleTwinkle
-        XCTAssertEqual(m.stepCount, 16)
-        XCTAssertEqual(m.events.count, 7)
-        // C C G G A A G——
-        XCTAssertEqual(m.events.map(\.pitchIndex), [0, 0, 4, 4, 5, 5, 4])
-        XCTAssertEqual(m.events.map(\.step), [0, 2, 4, 6, 8, 10, 12])
-        XCTAssertEqual(m.events.last?.durationSteps, 4, "结尾长音用 duration 表达为 4 步")
+        XCTAssertEqual(m.stepCount, 64)
+        XCTAssertEqual(m.events.count, 28)
+        // 四句：C C G G A A G—— / F F E E D D C—— / G G F F E E D—— ×2
+        XCTAssertEqual(m.events.map(\.pitchIndex),
+                       [0, 0, 4, 4, 5, 5, 4,
+                        3, 3, 2, 2, 1, 1, 0,
+                        4, 4, 3, 3, 2, 2, 1,
+                        4, 4, 3, 3, 2, 2, 1])
+        XCTAssertEqual(m.events.map(\.step),
+                       [0, 2, 4, 6, 8, 10, 12,
+                        16, 18, 20, 22, 24, 26, 28,
+                        32, 34, 36, 38, 40, 42, 44,
+                        48, 50, 52, 54, 56, 58, 60])
+        XCTAssertEqual(m.events.last?.durationSteps, 4, "每句结尾长音用 duration 表达为 4 步")
         for e in m.events {
             XCTAssertTrue((0..<8).contains(e.pitchIndex))
-            XCTAssertTrue((0..<16).contains(e.step))
-            XCTAssertLessThanOrEqual(e.step + e.durationSteps, 16)
+            XCTAssertTrue((0..<64).contains(e.step))
+            XCTAssertLessThanOrEqual(e.step + e.durationSteps, 64)
         }
     }
 
     func testOdeToJoyPresetWithinGrid() {
         let m = Melody.odeToJoy
-        XCTAssertEqual(m.events.count, 8)
-        XCTAssertEqual(m.events.map(\.pitchIndex), [2, 2, 3, 4, 4, 3, 2, 1])
+        XCTAssertEqual(m.stepCount, 64)
+        XCTAssertEqual(m.events.count, 30)
+        XCTAssertEqual(m.events.map(\.pitchIndex),
+                       [2, 2, 3, 4, 4, 3, 2, 1, 0, 0, 1, 2, 2, 1, 1,
+                        2, 2, 3, 4, 4, 3, 2, 1, 0, 0, 1, 2, 1, 0, 0])
         XCTAssertTrue(m.events.allSatisfy { $0.step + $0.durationSteps <= m.stepCount })
+    }
+
+    // MARK: - Phase 3：64 步默认与旧预置迁移
+
+    func testMakeBlankDefaultsTo64Steps() {
+        XCTAssertEqual(Melody.makeBlank(name: "x").stepCount, 64)
+        XCTAssertEqual(Melody.blankTemplate.stepCount, 64)
+    }
+
+    func testLegacyPresetMigrationReplacesUntouchedOnly() {
+        let legacy = Melody.legacyPresets
+        XCTAssertEqual(legacy.count, 3)
+        XCTAssertTrue(legacy.allSatisfy { $0.stepCount == 16 }, "旧定义必须保持 16 步原样")
+        // 用户改动过的旧预置：同 id、不同内容 → 不得被迁移覆盖
+        let edited = legacy[0].addingNote(pitchIndex: 7, step: 15)
+        // 用户自建旋律 → 原样保留
+        let mine = Melody.makeBlank(name: "我的", stepCount: 16).addingNote(pitchIndex: 0, step: 0)
+        let migrated = Melody.refreshingLegacyPresets(legacy + [edited, mine])
+        XCTAssertEqual(migrated.count, 5)
+        XCTAssertEqual(migrated[0], Melody.twinkleTwinkle)
+        XCTAssertEqual(migrated[1], Melody.odeToJoy)
+        XCTAssertEqual(migrated[2], Melody.blankTemplate)
+        XCTAssertEqual(migrated[3], edited, "用户改过的预置必须原样保留")
+        XCTAssertEqual(migrated[4], mine)
+        // 幂等：再迁一次结果不变
+        XCTAssertEqual(Melody.refreshingLegacyPresets(migrated), migrated)
     }
 }
 
@@ -165,6 +202,6 @@ final class GiftPackageTests: XCTestCase {
         let decoded = try decoder.decode(GiftPackage.self, from: data)
         XCTAssertEqual(gift, decoded)
         XCTAssertEqual(decoded.melodyId, Melody.twinkleTwinkle.id)
-        XCTAssertEqual(decoded.melodySnapshot.events.count, 7, "礼物必须自带完整旋律快照")
+        XCTAssertEqual(decoded.melodySnapshot.events.count, 28, "礼物必须自带完整旋律快照")
     }
 }
