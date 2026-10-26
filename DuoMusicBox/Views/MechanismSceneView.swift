@@ -308,7 +308,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         root.addChildNode(ambient)
 
         let lookTarget = SCNNode()
-        lookTarget.position = SCNVector3(0, -0.15, 0)
+        lookTarget.position = SCNVector3(0, -0.30, 0)
         root.addChildNode(lookTarget)
         lookTargetNode = lookTarget
 
@@ -365,7 +365,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         cameraNode.camera?.bloomIntensity = 0.45
         cameraNode.camera?.bloomThreshold = 0.8
         cameraNode.camera?.bloomBlurRadius = 10
-        cameraNode.position = SCNVector3(0, 0.30, 4.7)
+        // 画面补强机位（助手裁剪版方案）：抬高到 y 0.85、略拉近，向下俯约 14°，
+        // 让观者能瞥见盒底、低侧墙内侧与盒盖下缘——纵深主要靠这一眼。
+        cameraNode.position = SCNVector3(0, 0.85, 4.55)
         cameraNode.constraints = [SCNLookAtConstraint(target: lookTarget)]
         cameraRig.addChildNode(cameraNode)
         root.addChildNode(cameraRig)
@@ -379,10 +381,60 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         backPanel.position = SCNVector3(0, -0.05, -1.1)
         root.addChildNode(backPanel)
 
-        let plinth = SCNNode(geometry: SCNBox(width: 6.8, height: 0.28, length: 2.4, chamferRadius: 0.03))
+        // 底座加深（2.4 → 3.2，前缘推到 z 1.75）：它现在是木盒的盒底板，
+        // 音梳安装座（前缘 z 1.51）完整落在盒底内，不再探出盒外。
+        let plinth = SCNNode(geometry: SCNBox(width: 6.8, height: 0.28, length: 3.2, chamferRadius: 0.03))
         plinth.geometry?.firstMaterial = woodBackdrop
-        plinth.position = SCNVector3(0, -2.3, -0.15)
+        plinth.position = SCNVector3(0, -2.3, 0.15)
         root.addChildNode(plinth)
+
+        // —— 轻量木盒（用户参考图的第一眼差距；ChatGPT 规格经助手裁剪后只留
+        // 结构件）：左右低侧墙 + 上沿压条 + 后方打开的盒盖内面 + 黄铜铰链。
+        // 墙内面距滚筒端板外脸约 0.15、距鼓轴端约 0.11，是"量身定做"的贴合感；
+        // 墙高只到 y −0.90（约滚筒下缘），俯瞰机位下露内侧面与顶面，纵深成立
+        // 又不遮挡机芯。全部沿用压暗胡桃木，与背板同属一个盒子。
+        for side in [-1, 1] {
+            let wall = SCNNode(geometry: SCNBox(width: 0.22, height: 1.26, length: 2.7, chamferRadius: 0.02))
+            wall.geometry?.firstMaterial = woodBackdrop
+            wall.position = SCNVector3(Float(side) * 2.16, -1.53, 0.35)
+            root.addChildNode(wall)
+            let rim = SCNNode(geometry: SCNBox(width: 0.32, height: 0.055, length: 2.78, chamferRadius: 0.015))
+            rim.geometry?.firstMaterial = woodBackdrop
+            rim.position = SCNVector3(Float(side) * 2.16, -0.875, 0.35)
+            root.addChildNode(rim)
+        }
+        // 盒盖：自背板上部向后倾约 17° 的整板，下缘压在背板面上（z −0.925，
+        // 比背板前面 −0.99 探出 0.065），下缘一条黄铜接缝条 + 两枚铰链
+        // （轴筒 + 叶片）交代它与盒体的连接；上部伸出画面外，是"开着的盖"。
+        let lid = SCNNode(geometry: SCNBox(width: 5.6, height: 2.4, length: 0.16, chamferRadius: 0.03))
+        lid.geometry?.firstMaterial = woodBackdrop
+        lid.position = SCNVector3(0, 2.30, -1.28)
+        lid.eulerAngles.x = -0.30
+        root.addChildNode(lid)
+        let lidSeam = SCNNode(geometry: SCNBox(width: 5.6, height: 0.045, length: 0.03, chamferRadius: 0))
+        lidSeam.geometry?.firstMaterial = brassDark
+        lidSeam.position = SCNVector3(0, 1.16, -0.915)
+        lidSeam.eulerAngles.x = -0.30
+        root.addChildNode(lidSeam)
+        for side in [-1, 1] {
+            let hingeBarrel = SCNNode(geometry: SCNCylinder(radius: 0.045, height: 0.5))
+            hingeBarrel.geometry?.firstMaterial = brassBright
+            hingeBarrel.eulerAngles.z = Float.pi / 2
+            hingeBarrel.position = SCNVector3(Float(side) * 1.3, 1.13, -0.90)
+            root.addChildNode(hingeBarrel)
+            let hingeLeaf = SCNNode(geometry: SCNBox(width: 0.34, height: 0.15, length: 0.02, chamferRadius: 0))
+            hingeLeaf.geometry?.firstMaterial = brassBright
+            hingeLeaf.position = SCNVector3(Float(side) * 1.3, 1.02, -0.975)
+            root.addChildNode(hingeLeaf)
+        }
+
+        // —— 机芯底板：整块机芯的黄铜基座，落在盒底上（顶面 y −2.11，
+        // 小齿轮齿尖 −2.10 恰好不碰——旋转件与静止件留 0.01 气隙，不穿插）。
+        // 端板支脚、发条筒、齿轮系都以它为落点，消除"挂在背板前"的漂浮感。
+        let bedPlate = SCNNode(geometry: SCNBox(width: 4.15, height: 0.07, length: 1.95, chamferRadius: 0.015))
+        bedPlate.geometry?.firstMaterial = brassDark
+        bedPlate.position = SCNVector3(0, -2.145, 0.1)
+        root.addChildNode(bedPlate)
 
         // 接触阴影：底座顶面（y = −2.16）上方 0.005 处一张径向渐变暗斑，
         // 与 key 光投影叠加，让机芯"坐"在底座上而非浮空。
@@ -413,6 +465,13 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             plate.geometry?.materials = [plateFace, plateFace, brassDark, brassDark, plateEdge, brassDark]
             plate.position = SCNVector3(Float(side) * 1.86, 0.1, 0)
             root.addChildNode(plate)
+
+            // 支脚：端板向下延伸落到机芯底板（上端与板底交叠 0.03、下端沉入
+            // 底板 0.01，无缝无悬空）——端板从"挂在空中"变成"立在基座上"。
+            let foot = SCNNode(geometry: SCNBox(width: 0.16, height: 1.40, length: 0.55, chamferRadius: 0.015))
+            foot.geometry?.firstMaterial = brassDark
+            foot.position = SCNVector3(Float(side) * 1.86, -1.42, 0.1)
+            root.addChildNode(foot)
 
             // 轴套：转轴穿出端板处的抛光圆盖（鼓轴在 y = drumY）。
             let collar = SCNNode(geometry: SCNCylinder(radius: 0.13, height: 0.07))
@@ -484,23 +543,39 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         drumGroup.addChildNode(ringGroup)
         buildColumnRings()
 
-        // —— 音梳：基座横梁在滚筒前上方，8 齿与音高列严格对齐 ——
+        // —— 音梳（视觉大改，用户按参考图定版）：移到滚筒前侧下方，钢梳板横卧在
+        // 观者与滚筒之间，齿尖向上后方啃合鼓面——与参考照片的机芯布局一致。
+        // 先铺一块机芯底板（钢）作音梳的安装座，梳不再悬空。
+        let combBed = SCNNode(geometry: SCNBox(width: 3.7, height: 0.05, length: 0.78, chamferRadius: 0.015))
+        combBed.geometry?.firstMaterial = steelDark
+        combBed.position = SCNVector3(0, -0.74, 1.12)
+        root.addChildNode(combBed)
+        // 安装座支腿：两条钢腿自梳座下缘直落盒底（顶 −0.76 贴座底 −0.765、
+        // 底 −2.16 贴盒底面），俯瞰机位下梳座不再悬空。
+        for side in [-1, 1] {
+            let leg = SCNNode(geometry: SCNBox(width: 0.12, height: 1.40, length: 0.12, chamferRadius: 0.01))
+            leg.geometry?.firstMaterial = steelDark
+            leg.position = SCNVector3(Float(side) * 1.5, -1.46, 1.35)
+            root.addChildNode(leg)
+        }
         let combBase = SCNNode(geometry: SCNBox(width: 3.6, height: 0.17, length: 0.34, chamferRadius: 0.02))
         combBase.geometry?.firstMaterial = steel
-        combBase.position = SCNVector3(0, 1.34, 0.86)
+        combBase.position = SCNVector3(0, -0.56, 1.33)
+        combBase.eulerAngles.x = -0.30
         root.addChildNode(combBase)
         for side in [-1, 1] {
             let screw = SCNNode(geometry: SCNCylinder(radius: 0.035, height: 0.03))
             screw.geometry?.firstMaterial = steelDark
-            screw.eulerAngles.x = Float.pi / 2
-            screw.position = SCNVector3(Float(side) * 1.55, 1.34, 1.045)
+            screw.eulerAngles.x = Float.pi / 2 - 0.30
+            screw.position = SCNVector3(Float(side) * 1.55, -0.53, 1.50)
             root.addChildNode(screw)
         }
 
-        // 梳齿指向：齿根（1.27, 0.98）→ 齿尖目标为鼓面 38° 处，二者之差决定齿的俯角。
-        let tipY = Double(drumY) + 1.03 * sin(38.0 * Double.pi / 180)
-        let tipZ = 1.03 * cos(38.0 * Double.pi / 180)
-        let gamma = atan2(tipY - 1.27, -(tipZ - 0.98)) // 绕 X 的俯角，推导见 MechanismMath 注释
+        // 梳齿指向：齿根（-0.48, 1.24）→ 齿尖目标为鼓面前下方（自鼓心向
+        // (0, -0.45, 0.89) 方向的鼓面点），二者之差决定齿的仰角。
+        let tipY = Double(drumY) - 1.03 * 0.45
+        let tipZ = 1.03 * 0.89
+        let gamma = atan2(tipY - (-0.48), -(tipZ - 1.24)) // 绕 X 的角度，推导同旧位（根→尖向量）
         let colW = MechanismMath.drumLength / Double(Melody.pitchCount)
         for p in 0..<Melody.pitchCount {
             let toothLength = 0.47 - Double(p) * 0.017 // 低音齿长、高音齿短（真实音梳规律）
@@ -511,7 +586,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             mesh.position = SCNVector3(0, 0, Float(-toothLength / 2)) // 几何挂在齿根之后，枢轴在齿根
             let tooth = SCNNode()
             tooth.position = SCNVector3(Float(-MechanismMath.drumLength / 2 + colW * (Double(p) + 0.5)),
-                                        1.27, 0.98)
+                                        -0.48, 1.24)
             tooth.eulerAngles.x = Float(gamma)
             tooth.addChildNode(mesh)
             root.addChildNode(tooth)
@@ -521,14 +596,21 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         }
 
         // —— 齿轮组（滚筒下方，面向观者）——
-        bigGearGroup = makeGear(teeth: 12, outerRadius: 0.52, material: gearBrass,
+        // 视觉大改：整体放大靠左成齿轮系（参考图左侧的钟表轮系感）：
+        // 大轮 0.52 → 0.58 并同轴叠一颗小轮（真实轮系的叠轮语言），
+        // 小轮 0.37 → 0.44；两轮中心距 ≈ 节圆半径和，齿尖互啮不穿插。
+        bigGearGroup = makeGear(teeth: 14, outerRadius: 0.58, material: gearBrass,
                                 hubMaterial: steel, darkMaterial: steelDark)
-        bigGearGroup.position = SCNVector3(-1.18, -1.32, 0.32)
+        bigGearGroup.position = SCNVector3(-1.32, -1.34, 0.32)
+        let bigPinion = makeGear(teeth: 10, outerRadius: 0.30, material: gearBrass,
+                                 hubMaterial: steel, darkMaterial: steelDark)
+        bigPinion.position = SCNVector3(0, 0, 0.13)
+        bigGearGroup.addChildNode(bigPinion)
         root.addChildNode(bigGearGroup)
 
-        smallGearGroup = makeGear(teeth: 8, outerRadius: 0.37, material: gearBrass,
+        smallGearGroup = makeGear(teeth: 10, outerRadius: 0.44, material: gearBrass,
                                   hubMaterial: steel, darkMaterial: steelDark)
-        smallGearGroup.position = SCNVector3(-0.469, -1.579, 0.32)
+        smallGearGroup.position = SCNVector3(-0.42, -1.66, 0.32)
         root.addChildNode(smallGearGroup)
 
         // 调速器：两片交叉翼片（Phase 1 governor 的 3D 对应物）
