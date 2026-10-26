@@ -230,7 +230,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         scene.lightingEnvironment.contents = ProceduralTextures.environment
         // 珍藏级一轮：环境图升级为双柔光箱（1024×512），强度 1.05 → 1.15，
         // 让鼓面高光流得动、音钉与抛光件的镜面反射更挺。
-        scene.lightingEnvironment.intensity = 1.15
+        scene.lightingEnvironment.intensity = 1.3
 
         // —— 材质（色值与 Theme 一一对应，保证 2D/3D 同一视觉语言）——
         let brass = pbrMaterial(color: (0.83, 0.65, 0.30), metalness: 1.0, roughness: 0.30)
@@ -276,6 +276,19 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         wood.diffuse.contents = ProceduralTextures.walnut
         wood.roughness.contents = ProceduralTextures.walnutRoughness
         wood.metalness.contents = NSNumber(value: 0.0)
+        // 背板/底座专用：同一套木纹压暗一号（diffuse.intensity），作机芯的深色衬底。
+        let woodBackdrop = SCNMaterial()
+        woodBackdrop.lightingModel = .physicallyBased
+        woodBackdrop.diffuse.contents = ProceduralTextures.walnut
+        woodBackdrop.diffuse.intensity = 0.78
+        woodBackdrop.roughness.contents = ProceduralTextures.walnutRoughness
+        woodBackdrop.metalness.contents = NSNumber(value: 0.0)
+        // 发条筒盖专用：径向拉丝 + 螺旋发条纹（纹理内绘制），筒盖一眼读作"里面卷着发条"。
+        let barrelLidMaterial = SCNMaterial()
+        barrelLidMaterial.lightingModel = .physicallyBased
+        barrelLidMaterial.diffuse.contents = ProceduralTextures.barrelLid
+        barrelLidMaterial.roughness.contents = NSNumber(value: 0.3)
+        barrelLidMaterial.metalness.contents = NSNumber(value: 1.0)
         // 音钉专用抛光黄铜：比 brassBright 更亮、粗糙度 0.22 → 0.11 近镜面——
         // 每颗钉在鼓面上是一个独立的小亮点，滚动时逐颗闪烁，是滚筒活过来的关键。
         let pinMaterial = pbrMaterial(color: (1.0, 0.90, 0.58), metalness: 1.0, roughness: 0.11)
@@ -295,7 +308,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         root.addChildNode(ambient)
 
         let lookTarget = SCNNode()
-        lookTarget.position = SCNVector3(0, -0.2, 0)
+        lookTarget.position = SCNVector3(0, -0.15, 0)
         root.addChildNode(lookTarget)
         lookTargetNode = lookTarget
 
@@ -303,7 +316,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         key.light = SCNLight()
         key.light?.type = .directional
         key.light?.color = UIColor(red: 1.0, green: 0.93, blue: 0.80, alpha: 1)
-        key.light?.intensity = 2.0
+        key.light?.intensity = 2.4
         // 投影：方向光的影相机用自动投影（automaticallyAdjustsShadowProjection
         // 显式打开）——场景包围盒只有约 5.0×4.6×2.6，自动拟合已足够紧、分辨率够用；
         // 手设 orthographicScale/zNear/zFar 反而容易裁掉影子，故不手设。
@@ -332,33 +345,42 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         rim.light = SCNLight()
         rim.light?.type = .directional
         rim.light?.color = UIColor(red: 0.62, green: 0.72, blue: 1.0, alpha: 1)
-        rim.light?.intensity = 0.9
+        rim.light?.intensity = 1.15
         rim.position = SCNVector3(-4.5, 3.0, -3.5)
         rim.constraints = [SCNLookAtConstraint(target: lookTarget)]
         root.addChildNode(rim)
 
         // —— 相机：挂在 rig 上，视差只移动 rig（见 applyParallax），相机本地
         // 位置与 lookAt 约束保持不变，静止时与固定机位画面逐像素一致。
-        // 精修机位：z 6.6 → 5.3、fov 40 → 47、y 0.55 → 0.35——取景范围（z=0 处
-        // 可见高 4.80 → 4.61）几乎不变，但相机更近、透视梯度更陡
-        // （鼓面近/远端距离比 5.6/7.6 → 4.3/6.3），圆柱的"圆"与前后层次随之增强，
-        // 且同样的 rig 偏移在更近的机位上张角更大，视差也更读得出。
+        // 本轮机位（用户反馈"机芯太小、不震撼"）：z 5.3 → 4.7，z=0 处可见高
+        // 4.61 → 4.09，机芯纵向占比约 76% → 86%，透视再陡一档；
+        // 注视点 y -0.2 → -0.15 给音梳顶部留出安全余量。
+        // HDR + 泛光：高光过曝处轻微发光（音钉、齿尖、端盖亮边），是"珍藏级"
+        // 棚拍感的关键；曝光略抬，暗部靠更深的背板压住，对比不丢。
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
         cameraNode.camera?.fieldOfView = 47
-        cameraNode.position = SCNVector3(0, 0.35, 5.3)
+        cameraNode.camera?.wantsHDR = true
+        cameraNode.camera?.exposureOffset = 0.25
+        cameraNode.camera?.bloomIntensity = 0.45
+        cameraNode.camera?.bloomThreshold = 0.8
+        cameraNode.camera?.bloomBlurRadius = 10
+        cameraNode.position = SCNVector3(0, 0.30, 4.7)
         cameraNode.constraints = [SCNLookAtConstraint(target: lookTarget)]
         cameraRig.addChildNode(cameraNode)
         root.addChildNode(cameraRig)
 
         // —— 盒体：胡桃木背板 + 底座 ——
-        let backPanel = SCNNode(geometry: SCNBox(width: 5.0, height: 4.4, length: 0.22, chamferRadius: 0.03))
-        backPanel.geometry?.firstMaterial = wood
+        // 背板加宽加高（5.0×4.4 → 6.8×5.4）：相机拉近后可视范围变宽，且视差
+        // 偏移时画面边缘仍被木板覆盖，不露 App 的深色底。背板用压暗一号的木纹
+        // （diffuse.intensity 0.78），把暖色机芯从背景里顶出来。
+        let backPanel = SCNNode(geometry: SCNBox(width: 6.8, height: 5.4, length: 0.22, chamferRadius: 0.03))
+        backPanel.geometry?.firstMaterial = woodBackdrop
         backPanel.position = SCNVector3(0, -0.05, -1.1)
         root.addChildNode(backPanel)
 
-        let plinth = SCNNode(geometry: SCNBox(width: 5.0, height: 0.28, length: 2.4, chamferRadius: 0.03))
-        plinth.geometry?.firstMaterial = wood
+        let plinth = SCNNode(geometry: SCNBox(width: 6.8, height: 0.28, length: 2.4, chamferRadius: 0.03))
+        plinth.geometry?.firstMaterial = woodBackdrop
         plinth.position = SCNVector3(0, -2.3, -0.15)
         root.addChildNode(plinth)
 
@@ -546,10 +568,20 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         barrel.position = SCNVector3(0.72, -1.58, 0.32)
         root.addChildNode(barrel)
         let barrelLid = SCNNode(geometry: SCNCylinder(radius: 0.40, height: 0.025))
-        barrelLid.geometry?.firstMaterial = drumCap
+        barrelLid.geometry?.firstMaterial = barrelLidMaterial
         barrelLid.eulerAngles.x = Float.pi / 2
         barrelLid.position = SCNVector3(0.72, -1.58, 0.485)
         root.addChildNode(barrelLid)
+        // 棘轮齿环：筒盖外缘一圈 26 颗钢齿（上链时棘爪逐齿滑过的那圈轮），
+        // 冷钢色与黄铜筒身拉开材质对比，是发条筒最标志性的识别特征。
+        for toothIndex in 0..<26 {
+            let a = Float(toothIndex) / 26 * Float.pi * 2
+            let tooth = SCNNode(geometry: SCNBox(width: 0.055, height: 0.075, length: 0.045, chamferRadius: 0.008))
+            tooth.geometry?.firstMaterial = steelDark
+            tooth.position = SCNVector3(0.72 + 0.445 * cos(a), -1.58 + 0.445 * sin(a), 0.475)
+            tooth.eulerAngles.z = a + Float.pi / 2
+            root.addChildNode(tooth)
+        }
         let barrelRing = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.022))
         barrelRing.geometry?.firstMaterial = brass
         barrelRing.position = SCNVector3(0.72, -1.58, 0.48)
