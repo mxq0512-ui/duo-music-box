@@ -1,0 +1,52 @@
+{
+  "source": "/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/ComposeView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "保存旋律"
+      },
+      {
+        "comment": "",
+        "key": "参考谱例"
+      },
+      {
+        "comment": "",
+        "key": "步"
+      },
+      {
+        "comment": "",
+        "key": "%lld"
+      },
+      {
+        "comment": "",
+        "key": ""
+      },
+      {
+        "comment": "",
+        "key": "速度"
+      },
+      {
+        "comment": "",
+        "key": "%lld BPM"
+      },
+      {
+        "comment": "",
+        "key": "旋律名称"
+      },
+      {
+        "comment": "",
+        "key": "保存"
+      },
+      {
+        "comment": "",
+        "key": "取消"
+      },
+      {
+        "comment": "",
+        "key": "保存到「我的旋律」，下次打开还在。"
+      }
+    ]
+  },
+  "version": 1
+}

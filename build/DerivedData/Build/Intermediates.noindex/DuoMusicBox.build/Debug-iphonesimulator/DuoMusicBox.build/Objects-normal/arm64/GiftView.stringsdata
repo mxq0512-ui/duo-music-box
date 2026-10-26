@@ -1,0 +1,48 @@
+{
+  "source": "/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/GiftView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "把旋律装进八音盒，送给一个人"
+      },
+      {
+        "comment": "",
+        "key": "点「分享这份礼物」可经微信、隔空投送或信息把礼物文件发给对方；对方装有本 App 时，点开文件选「用 DUO MUSIC BOX 打开」即自动导入，也可在礼物页点「导入礼物」选入。免安装的网页链接仍在规划中。"
+      },
+      {
+        "comment": "",
+        "key": "选择旋律"
+      },
+      {
+        "comment": "",
+        "key": "礼物标题"
+      },
+      {
+        "comment": "",
+        "key": "祝福语"
+      },
+      {
+        "comment": "",
+        "key": "旋律"
+      },
+      {
+        "comment": "",
+        "key": "例如：给你的睡前小夜曲"
+      },
+      {
+        "comment": "",
+        "key": "已保存的礼物草稿（%lld）"
+      },
+      {
+        "comment": "",
+        "key": "还没有草稿。选一首旋律、写一句祝福，保存第一份吧。"
+      },
+      {
+        "comment": "",
+        "key": "旋律：《%@》 · %lld 颗音钉"
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,12 @@
+{
+  "source": "/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/WindingControl.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "发条 %lld%% · 拖动钥匙上链"
+      }
+    ]
+  },
+  "version": 1
+}

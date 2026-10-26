@@ -1,0 +1,36 @@
+"/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/GiftView.swift":
+  object: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftView.o"
+  swift-dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftView.swiftdeps"
+  diagnostics: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftView.dia"
+  dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftView.d"
+  const-values: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftView.swiftconstvalues"
+"/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/LibraryView.swift":
+  dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/LibraryView.d"
+  diagnostics: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/LibraryView.dia"
+  const-values: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/LibraryView.swiftconstvalues"
+  object: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/LibraryView.o"
+  swift-dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/LibraryView.swiftdeps"
+"/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/GiftWebPage.swift":
+  const-values: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftWebPage.swiftconstvalues"
+  object: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftWebPage.o"
+  dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftWebPage.d"
+  swift-dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftWebPage.swiftdeps"
+  diagnostics: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/GiftWebPage.dia"
+"/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/ProceduralTextures.swift":
+  swift-dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/ProceduralTextures.swiftdeps"
+  dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/ProceduralTextures.d"
+  object: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/ProceduralTextures.o"
+  const-values: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/ProceduralTextures.swiftconstvalues"
+  diagnostics: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/ProceduralTextures.dia"
+"/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/MechanismMath.swift":
+  object: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismMath.o"
+  dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismMath.d"
+  const-values: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismMath.swiftconstvalues"
+  swift-dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismMath.swiftdeps"
+  diagnostics: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismMath.dia"
+"/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/MechanismSceneView.swift":
+  dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismSceneView.d"
+  swift-dependencies: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismSceneView.swiftdeps"
+  diagnostics: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismSceneView.dia"
+  const-values: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismSceneView.swiftconstvalues"
+  object: "/Users/runner/work/duo-music-box/duo-music-box/build/DerivedData/Build/Intermediates.noindex/DuoMusicBox.build/Debug-iphonesimulator/DuoMusicBox.build/Objects-normal/arm64/MechanismSceneView.o"

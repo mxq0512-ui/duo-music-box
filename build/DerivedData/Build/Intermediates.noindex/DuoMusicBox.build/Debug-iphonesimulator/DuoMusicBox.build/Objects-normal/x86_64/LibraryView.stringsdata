@@ -1,0 +1,44 @@
+{
+  "source": "/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/LibraryView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "旋律库是空的，去「编曲」装上第一颗音钉再保存吧。"
+      },
+      {
+        "comment": "",
+        "key": "删除"
+      },
+      {
+        "comment": "",
+        "key": "重命名"
+      },
+      {
+        "comment": "",
+        "key": "%@ · %lld"
+      },
+      {
+        "comment": "",
+        "key": "名称"
+      },
+      {
+        "comment": "",
+        "key": "确定"
+      },
+      {
+        "comment": "",
+        "key": "取消"
+      },
+      {
+        "comment": "",
+        "key": "删除后无法恢复。"
+      },
+      {
+        "comment": "",
+        "key": "%lld 颗音钉 · %lld 步 · %lld BPM"
+      }
+    ]
+  },
+  "version": 1
+}

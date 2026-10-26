@@ -1,0 +1,32 @@
+{
+  "source": "/Users/runner/work/duo-music-box/duo-music-box/DuoMusicBox/Views/MusicBoxView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "合上盒盖"
+      },
+      {
+        "comment": "",
+        "key": "一台可以亲手上发条、装音钉的八音盒"
+      },
+      {
+        "comment": "",
+        "key": "轻点上方盒盖开盒"
+      },
+      {
+        "comment": "",
+        "key": "谱例"
+      },
+      {
+        "comment": "",
+        "key": "照着钉"
+      },
+      {
+        "comment": "",
+        "key": "速度 %lld"
+      }
+    ]
+  },
+  "version": 1
+}
