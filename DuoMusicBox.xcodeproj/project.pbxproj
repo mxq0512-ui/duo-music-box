@@ -21,6 +21,8 @@
 		FB0000000000000000000012 /* ComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000012 /* ComposeView.swift */; };
 		FB0000000000000000000013 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000013 /* LibraryView.swift */; };
 		FB0000000000000000000014 /* GiftView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000014 /* GiftView.swift */; };
+		FB0000000000000000000021 /* GiftWebPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000021 /* GiftWebPage.swift */; };
+		FB0000000000000000000021 /* GiftWebPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000021 /* GiftWebPage.swift */; };
 		FB0000000000000000000015 /* MelodyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000015 /* MelodyTests.swift */; };
 		FB0000000000000000000016 /* PlaybackMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000016 /* PlaybackMathTests.swift */; };
 		FB0000000000000000000017 /* MechanismMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000000000000000000017 /* MechanismMath.swift */; };
@@ -55,6 +57,8 @@
 		FA0000000000000000000012 /* ComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeView.swift; sourceTree = "<group>"; };
 		FA0000000000000000000013 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		FA0000000000000000000014 /* GiftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftView.swift; sourceTree = "<group>"; };
+		FA0000000000000000000021 /* GiftWebPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftWebPage.swift; sourceTree = "<group>"; };
+		FA0000000000000000000021 /* GiftWebPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftWebPage.swift; sourceTree = "<group>"; };
 		FA0000000000000000000015 /* MelodyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MelodyTests.swift; sourceTree = "<group>"; };
 		FA0000000000000000000016 /* PlaybackMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackMathTests.swift; sourceTree = "<group>"; };
 		FA0000000000000000000017 /* MechanismMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MechanismMath.swift; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 				FA0000000000000000000012 /* ComposeView.swift */,
 				FA0000000000000000000013 /* LibraryView.swift */,
 				FA0000000000000000000014 /* GiftView.swift */,
+				FA0000000000000000000021 /* GiftWebPage.swift */,
 				FA0000000000000000000017 /* MechanismMath.swift */,
 				FA0000000000000000000018 /* ProceduralTextures.swift */,
 				FA0000000000000000000019 /* MechanismSceneView.swift */,
@@ -272,6 +277,7 @@
 				FB0000000000000000000012 /* ComposeView.swift in Sources */,
 				FB0000000000000000000013 /* LibraryView.swift in Sources */,
 				FB0000000000000000000014 /* GiftView.swift in Sources */,
+				FB0000000000000000000021 /* GiftWebPage.swift in Sources */,
 				FB0000000000000000000017 /* MechanismMath.swift in Sources */,
 				FB0000000000000000000018 /* ProceduralTextures.swift in Sources */,
 				FB0000000000000000000019 /* MechanismSceneView.swift in Sources */,
