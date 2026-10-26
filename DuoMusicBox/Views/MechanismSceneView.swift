@@ -251,6 +251,14 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // 钢件（音梳/转轴/螺丝）：冷色调抛光钢，与暖黄铜形成材质对照。
         // 珍藏级一轮：粗糙度 0.18 → 0.13，梳齿与转轴近镜面，冷光刃口更利。
         let steel = pbrMaterial(color: (0.70, 0.75, 0.85), metalness: 1.0, roughness: 0.13)
+        // 音梳专用缎面钢：比通用亮钢暗一档、粗糙一档——真实梳齿是哑光弹簧钢，
+        // 镜面亮钢在截图里只剩一条白边、齿身反而读成灰板（精修三轮的用户反馈）。
+        let combSteel = pbrMaterial(color: (0.64, 0.68, 0.76), metalness: 1.0, roughness: 0.30)
+        // 音梳横梁：深钢 + 拉丝粗糙度，让横梁退到齿后、不再抢成一条亮带。
+        let beamSteel = pbrMaterial(color: (0.40, 0.43, 0.50), metalness: 1.0, roughness: 0.45)
+        beamSteel.roughness.contents = ProceduralTextures.brushedRoughness
+        // 蝶形钥匙的古铜：与鼓面亮金、筒身深拉丝拉开第三个层次，去掉"全金玩具感"。
+        let brassAntique = pbrMaterial(color: (0.55, 0.40, 0.18), metalness: 1.0, roughness: 0.35)
         let steelDark = pbrMaterial(color: (0.40, 0.44, 0.53), metalness: 0.95, roughness: 0.38)
         // 滚筒：侧面用拉丝黄铜贴图（底色烤入 diffuse）+ 拉丝粗糙度图（0.25–0.45），
         // 端盖用径向拉丝贴图。SCNCylinder 材质槽位顺序为 [侧面, 顶盖, 底盖]，
@@ -472,7 +480,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
 
         // —— 音梳：基座横梁在滚筒前上方，8 齿与音高列严格对齐 ——
         let combBase = SCNNode(geometry: SCNBox(width: 3.90, height: 0.13, length: 0.30, chamferRadius: 0.02))
-        combBase.geometry?.firstMaterial = steel
+        combBase.geometry?.firstMaterial = beamSteel
         combBase.position = SCNVector3(0, 1.34, 0.86)
         root.addChildNode(combBase)
         for side in [-1, 1] {
@@ -490,8 +498,8 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let colW = MechanismMath.drumLength / Double(Melody.pitchCount)
         for p in 0..<Melody.pitchCount {
             let toothLength = 0.47 - Double(p) * 0.017 // 低音齿长、高音齿短（真实音梳规律）
-            let toothMaterial = (steel.copy() as? SCNMaterial) ?? steel
-            let mesh = SCNNode(geometry: SCNBox(width: 0.125, height: 0.018,
+            let toothMaterial = (combSteel.copy() as? SCNMaterial) ?? combSteel
+            let mesh = SCNNode(geometry: SCNBox(width: 0.118, height: 0.012,
                                                 length: CGFloat(toothLength), chamferRadius: 0.003))
             mesh.geometry?.firstMaterial = toothMaterial
             mesh.position = SCNVector3(0, 0, Float(-toothLength / 2)) // 几何挂在齿根之后，枢轴在齿根
@@ -515,9 +523,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             for f in 1...5 {
                 let frac = Double(f) / 6.0
                 let dummyLength = 0.47 - (Double(p) + frac) * 0.017
-                let mesh = SCNNode(geometry: SCNBox(width: 0.040, height: 0.015,
+                let mesh = SCNNode(geometry: SCNBox(width: 0.040, height: 0.010,
                                                     length: CGFloat(dummyLength), chamferRadius: 0.002))
-                mesh.geometry?.firstMaterial = steel
+                mesh.geometry?.firstMaterial = combSteel
                 mesh.position = SCNVector3(0, 0, Float(-dummyLength / 2))
                 let dummy = SCNNode()
                 dummy.position = SCNVector3(Float(-MechanismMath.drumLength / 2 + colW * (Double(p) + frac)),
@@ -583,12 +591,12 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         barrel.position = SCNVector3(0.72, -1.58, 0.32)
         root.addChildNode(barrel)
         let barrelLid = SCNNode(geometry: SCNCylinder(radius: 0.40, height: 0.025))
-        barrelLid.geometry?.firstMaterial = drumCap
+        barrelLid.geometry?.firstMaterial = barrelSide
         barrelLid.eulerAngles.x = Float.pi / 2
         barrelLid.position = SCNVector3(0.72, -1.58, 0.485)
         root.addChildNode(barrelLid)
-        let barrelRing = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.022))
-        barrelRing.geometry?.firstMaterial = brass
+        let barrelRing = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.015))
+        barrelRing.geometry?.firstMaterial = grooveBrass
         barrelRing.position = SCNVector3(0.72, -1.58, 0.48)
         root.addChildNode(barrelRing)
         let barrelGroove = SCNNode(geometry: SCNTorus(ringRadius: 0.44, pipeRadius: 0.012))
@@ -612,21 +620,21 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // 转动行为不变：update() 只写 keyGroup.eulerAngles.z，与 scale 正交。
         let windKey = SCNNode()
         let shaft = SCNNode(geometry: SCNCylinder(radius: 0.045, height: 0.30))
-        shaft.geometry?.firstMaterial = brassBright
+        shaft.geometry?.firstMaterial = brassAntique
         shaft.eulerAngles.x = Float.pi / 2
         windKey.addChildNode(shaft)
         let stem = SCNNode(geometry: SCNBox(width: 0.06, height: 0.30, length: 0.05, chamferRadius: 0.01))
-        stem.geometry?.firstMaterial = brassBright
+        stem.geometry?.firstMaterial = brassAntique
         stem.position = SCNVector3(0, 0.10, 0.14)
         windKey.addChildNode(stem)
         for side in [-1, 1] {
-            let loop = SCNNode(geometry: SCNTorus(ringRadius: 0.115, pipeRadius: 0.028))
-            loop.geometry?.firstMaterial = brassBright
-            loop.position = SCNVector3(Float(side) * 0.115, 0.30, 0.14)
+            let loop = SCNNode(geometry: SCNTorus(ringRadius: 0.105, pipeRadius: 0.024))
+            loop.geometry?.firstMaterial = brassAntique
+            loop.position = SCNVector3(Float(side) * 0.105, 0.30, 0.14)
             windKey.addChildNode(loop)
         }
-        windKey.scale = SCNVector3(1.25, 1.25, 1.25)
-        windKey.position = SCNVector3(0.72, -1.58, 0.6575)
+        windKey.scale = SCNVector3(1.05, 1.05, 1.05)
+        windKey.position = SCNVector3(0.72, -1.58, 0.6275)
         root.addChildNode(windKey)
         keyGroup = windKey
 
