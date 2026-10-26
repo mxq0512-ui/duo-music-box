@@ -42,6 +42,12 @@ public enum MechanismMath {
         rotationDegrees * Double.pi / 180
     }
 
+    /// 编辑刻度环的步进间隔：16 步内逐环，步数翻倍则间隔翻倍，
+    /// 保证任意步数下鼓面刻度环始终约 16 条（64 步 = 每 4 步一环，即每半小节一条）。
+    public static func stepRingStride(stepCount: Int) -> Int {
+        max(1, stepCount / 16)
+    }
+
     // MARK: - 点按反解（逆向，与落位互逆）
 
     /// 把滚筒子坐标系中的命中点反解为 (pitch, step)：pitch 取所在音高列，
