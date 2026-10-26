@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// 编曲模式（交接书模式 B：Free Compose 为 Phase 1 落地范围；
-/// 模式 A 教程的乐谱指引区在此预留为同一块音高网格，教程步进逻辑在 Phase 3 扩展）。
+/// 编曲模式（交接书模式 B：Free Compose）。
 ///
-/// 布局与全 App 统一：上半区 = 指引（音高网格 + 当前节拍 + 选中格信息），
-/// 下半区 = 可编辑滚筒（Phase 2 起为 MechanismSceneView 3D 场景，编辑语义不变）。装钉/拆钉即时发声验证，
-/// 编辑结果实时 sync 回 PlaybackEngine，试听与创作共用同一份草稿数据。
+/// 布局与全 App 统一：上半区 = 可编辑音高表格（Phase 3 起为主要编曲面：
+/// 点格装/拆音钉，64 步横向滚动，试听时播放列自动跟随），
+/// 下半区 = 3D 滚筒镜像（同一份草稿数据的实时呈现，可拖动滚动、可点按，
+/// 与表格互为镜像）。装钉/拆钉即时发声验证，编辑结果实时 sync 回
+/// PlaybackEngine，试听与创作共用同一份草稿数据。
 public struct ComposeView: View {
     @ObservedObject public var playback: PlaybackEngine
     @ObservedObject public var store: MelodyStore
@@ -41,72 +42,109 @@ public struct ComposeView: View {
                                isEditing: true) { pitch, step in
                 toggle(pitch: pitch, step: step)
             }
-            .frame(height: 218)
+            .frame(height: 184)
             controls
         }
     }
 
-    // MARK: - 上半区指引
+    // MARK: - 上半区：可编辑音高表格（Phase 3 主要编曲面）
+
+    private static let cellW: CGFloat = 30
+    private static let cellH: CGFloat = 17
+
+    /// 已装钉格子的键集合（pitch × 10000 + step），供单元格 O(1) 查询。
+    private var noteKeySet: Set<Int> {
+        Set(draft.events.map { $0.pitchIndex * 10000 + $0.step })
+    }
 
     private var guidancePanel: some View {
         ZStack {
             WoodPanel(cornerRadius: 12, inner: true)
             HStack(spacing: 8) {
-                // 左列音高名（自上而下 C6 → C5，与网格行对应）
+                // 左列音高名（自上而下 C6 → C5，与网格行对应；首行为表头占位）
                 VStack(spacing: 0) {
+                    Text("步")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(Theme.creamDim)
+                        .frame(height: 14)
                     ForEach((0..<Melody.pitchCount).reversed(), id: \.self) { i in
                         Text(Pitch.at(index: i)?.noteName ?? "")
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(selectedPitch == i ? Theme.brassBright : Theme.creamDim)
-                            .frame(height: 13)
+                            .frame(height: Self.cellH)
                     }
                 }
-                pitchGrid
+                .frame(width: 22)
+                editorGrid
             }
             .padding(8)
         }
-        .frame(height: 122)
+        .frame(height: 170)
     }
 
-    /// 简化音符指引网格：行 = 音高（上高下低），列 = 时间步；亮点 = 音钉；
-    /// 播放时当前列高亮；点选格在网格上以黄铜圈标出。
-    private var pitchGrid: some View {
-        Canvas { ctx, size in
-            let rows = Melody.pitchCount
-            let cols = draft.stepCount
-            let cellW = size.width / CGFloat(cols)
-            let cellH = size.height / CGFloat(rows)
-            // 五线谱式横线（每行一条）
-            var lines = Path()
-            for r in 0...rows {
-                let y = cellH * CGFloat(r)
-                lines.move(to: CGPoint(x: 0, y: y))
-                lines.addLine(to: CGPoint(x: size.width, y: y))
+    /// 横向滚动的步进表格：列 = 时间步（64 步全长），行 = 音高；
+    /// 点格即装/拆音钉（与滚筒点按共用同一个 toggle）；试听时当前列高亮并自动滚入视野。
+    private var editorGrid: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    ForEach(0..<draft.stepCount, id: \.self) { step in
+                        gridColumn(step: step)
+                            .id(step)
+                    }
+                }
             }
-            ctx.stroke(lines, with: .color(Theme.cream.opacity(0.16)), lineWidth: 0.6)
-            // 当前播放列
-            if playback.isPlaying, playback.melody.id == draft.id {
-                let x = cellW * CGFloat(playback.currentStep)
-                ctx.fill(Path(CGRect(x: x, y: 0, width: cellW, height: size.height)),
-                         with: .color(Theme.brass.opacity(0.18)))
-            }
-            // 音钉点
-            for event in draft.events {
-                let rowFromTop = CGFloat(Melody.pitchCount - 1 - event.pitchIndex)
-                let cx = cellW * (CGFloat(event.step) + 0.5)
-                let cy = cellH * (rowFromTop + 0.5)
-                let r = min(cellW, cellH) * 0.30
-                ctx.fill(Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)),
-                         with: .color(Theme.brassBright))
-            }
-            // 选中格
-            if let sp = selectedPitch, let ss = selectedStep {
-                let rowFromTop = CGFloat(Melody.pitchCount - 1 - sp)
-                let rect = CGRect(x: cellW * CGFloat(ss), y: cellH * rowFromTop,
-                                  width: cellW, height: cellH)
-                ctx.stroke(Path(rect), with: .color(Theme.brassBright), lineWidth: 1.4)
+            .onChange(of: playback.currentStep) { _, newStep in
+                if playback.isPlaying, playback.melody.id == draft.id {
+                    withAnimation(.linear(duration: 0.12)) {
+                        proxy.scrollTo(newStep, anchor: .center)
+                    }
+                }
             }
         }
+    }
+
+    private func gridColumn(step: Int) -> some View {
+        let isCurrent = playback.isPlaying && playback.melody.id == draft.id
+            && playback.currentStep == step
+        return VStack(spacing: 0) {
+            // 表头：每小节（8 步 = 4/4 一小节）标出起始步号
+            Text(step % 8 == 0 ? "\(step + 1)" : "")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(isCurrent ? Theme.brassBright : Theme.creamDim)
+                .frame(width: Self.cellW, height: 14)
+            ForEach((0..<Melody.pitchCount).reversed(), id: \.self) { pitch in
+                gridCell(pitch: pitch, step: step)
+            }
+        }
+        .background(isCurrent ? Theme.brass.opacity(0.13) : Color.clear)
+        .overlay(alignment: .leading) {
+            if step % 8 == 0, step > 0 {
+                Rectangle()
+                    .fill(Theme.cream.opacity(0.22))
+                    .frame(width: 1)
+            }
+        }
+    }
+
+    private func gridCell(pitch: Int, step: Int) -> some View {
+        let has = noteKeySet.contains(pitch * 10000 + step)
+        let isSelected = selectedPitch == pitch && selectedStep == step
+        return ZStack {
+            Rectangle()
+                .fill(has ? Theme.brass : Theme.cream.opacity(0.05))
+            if has {
+                Circle()
+                    .fill(Theme.brassBright)
+                    .frame(width: 7, height: 7)
+            }
+            Rectangle()
+                .strokeBorder(isSelected ? Theme.brassBright : Theme.cream.opacity(0.10),
+                              lineWidth: isSelected ? 1.4 : 0.5)
+        }
+        .frame(width: Self.cellW, height: Self.cellH)
+        .contentShape(Rectangle())
+        .onTapGesture { toggle(pitch: pitch, step: step) }
     }
 
     // MARK: - 控制区
@@ -180,9 +218,9 @@ public struct ComposeView: View {
     private var selectionText: String {
         if let p = selectedPitch, let s = selectedStep, let pitch = Pitch.at(index: p) {
             let has = draft.hasNote(pitchIndex: p, step: s)
-            return "已选 \(pitch.noteName)（\(pitch.solfege)）· 第 \(s + 1) 步 · \(has ? "有音钉，再点一次拆除" : "空，点滚筒装上音钉")"
+            return "已选 \(pitch.noteName)（\(pitch.solfege)）· 第 \(s + 1) 步 · \(has ? "有音钉，再点一次拆除" : "空，再点一次装上")"
         }
-        return "点按滚筒装上或拆除音钉 · 共 \(draft.events.count) 颗 · \(draft.stepCount) 步"
+        return "点上方表格装上或拆除音钉（滚筒可拖动滚动，也可点按）· 共 \(draft.events.count) 颗 · \(draft.stepCount) 步"
     }
 
     /// 只有播放器当前装载的正是这份草稿时，才把编辑实时同步过去；
