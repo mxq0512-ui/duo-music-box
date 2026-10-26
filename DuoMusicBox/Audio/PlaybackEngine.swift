@@ -62,8 +62,21 @@ public final class PlaybackEngine: ObservableObject {
     @Published public private(set) var cylinderRotation: Double = 0
     /// 发条储能 0...1：播放消耗、上发条补充；低于 25% 曲速渐慢，耗尽停转。
     @Published public var springCharge: Double = 0.8
-    /// 当前速度（BPM）。装载旋律时取旋律自带速度，之后可由用户滑杆调整。
-    @Published public var tempoBPM: Double = 100
+    /// 速度可调区间（用户定版）：100...200 BPM。低于 100 整体听感拖沓，故设下限；
+    /// 滑杆范围与装载旋律时的速度钳制都走这里，全 App 只有一个口径。
+    public static let tempoRange: ClosedRange<Double> = 100...200
+
+    public static func clampedTempo(_ bpm: Double) -> Double {
+        min(tempoRange.upperBound, max(tempoRange.lowerBound, bpm))
+    }
+
+    /// 当前速度（BPM）。装载旋律时取旋律自带速度（钳制进 tempoRange），之后可由用户滑杆调整。
+    @Published public var tempoBPM: Double = 100 {
+        didSet {
+            let clamped = Self.clampedTempo(tempoBPM)
+            if clamped != tempoBPM { tempoBPM = clamped }
+        }
+    }
 
     /// 一次"步触发"快照：某一步抵达拨弦线的瞬间，被拨动的全部音高。
     /// 只读观察口，供 Phase 2 的 3D 音梳振动等纯视觉效果订阅；

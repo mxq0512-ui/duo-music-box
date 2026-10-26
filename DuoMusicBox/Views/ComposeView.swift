@@ -48,7 +48,7 @@ public struct ComposeView: View {
                                isEditing: true) { pitch, step in
                 toggle(pitch: pitch, step: step)
             }
-            .frame(height: 184)
+            .frame(minHeight: 196, maxHeight: .infinity)
             controls
         }
     }
@@ -225,7 +225,7 @@ public struct ComposeView: View {
                         draft = draft.withTempo(newValue)
                         syncDraftToPlayer()
                         if playback.melody.id == draft.id { playback.tempoBPM = newValue }
-                    }), in: 60...160, step: 1)
+                    }), in: PlaybackEngine.tempoRange, step: 1)
                 .tint(Theme.brass)
                 Text("\(Int(draft.tempoBPM)) BPM")
                     .font(.system(size: 11, weight: .semibold))
