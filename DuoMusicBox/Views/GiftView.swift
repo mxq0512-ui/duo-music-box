@@ -4,14 +4,16 @@ import UniformTypeIdentifiers
 /// 数字礼物（界面六 Gift）：礼物包（旋律快照 + 标题 + 祝福）本地草稿 +
 /// 系统分享文件 + 导入。
 ///
-/// 分享走系统分享面板：把整个礼物导出为文件（.json），经微信、隔空投送、
-/// 信息发出；对方装有本 App 时在礼物页「导入礼物」选中该文件即可打开聆听，
-/// 旋律同时存入对方的旋律库。
+/// 分享走系统分享面板：把整个礼物导出为专有礼物文件（.duogift），经微信、隔空
+/// 投送、信息发出；对方装有本 App 时，点开文件选「用 DUO MUSIC BOX 打开」即
+/// 自动导入（或在礼物页「导入礼物」手动选入），旋律同时存入对方的旋律库。
 /// 诚实边界：交接书 Phase 4 的"生成链接 → 浏览器免安装打开播放"需要线上服务
 /// （链接存储、隐私、失效与滥用防护），仍未开通——这里不会生成假链接。
 public struct GiftView: View {
     @ObservedObject public var store: MelodyStore
     @StateObject private var giftStore = GiftStore()
+    /// 「打开方式」投递箱（App 入口从微信/文件点开礼物文件时投递到这里）。
+    @ObservedObject private var inbox = GiftInbox.shared
 
     @State private var selectedMelodyId: UUID?
     @State private var title = ""
@@ -54,10 +56,22 @@ public struct GiftView: View {
         }
         .onAppear {
             if selectedMelodyId == nil { selectedMelodyId = store.melodies.first?.id }
+            consumePendingGift()
         }
-        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
+        .onChange(of: inbox.pending?.id) { _, _ in
+            consumePendingGift()
+        }
+        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.duoGift, .json]) { result in
             handleImport(result)
         }
+    }
+
+    /// 取走「打开方式」投递箱里的礼物并完成导入（从微信/文件点开礼物文件时）。
+    private func consumePendingGift() {
+        guard let gift = inbox.pending else { return }
+        inbox.pending = nil
+        importNote = gift.importInto(giftStore: giftStore, melodyStore: store)
+        Haptics.medium()
     }
 
     private var explanation: some View {
@@ -65,7 +79,7 @@ public struct GiftView: View {
             Text("把旋律装进八音盒，送给一个人")
                 .font(Theme.plaqueFont(size: 15))
                 .foregroundStyle(Theme.cream)
-            Text("点「分享这份礼物」可经微信、隔空投送或信息把礼物文件发给对方；对方装有本 App 时，在礼物页点「导入礼物」打开即可聆听。免安装的网页链接仍在规划中。")
+            Text("点「分享这份礼物」可经微信、隔空投送或信息把礼物文件发给对方；对方装有本 App 时，点开文件选「用 DUO MUSIC BOX 打开」即自动导入，也可在礼物页点「导入礼物」选入。免安装的网页链接仍在规划中。")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.creamDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -171,18 +185,7 @@ public struct GiftView: View {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             let data = try Data(contentsOf: url)
             let gift = try GiftPackage.decode(data: data)
-            giftStore.add(gift)
-            let snapshot = gift.melodySnapshot
-            if let existing = store.melody(id: snapshot.id) {
-                if existing != snapshot {
-                    var copy = snapshot
-                    copy.id = UUID()
-                    store.save(copy)
-                }
-            } else {
-                store.save(snapshot)
-            }
-            importNote = "已导入礼物《\(gift.title)》——旋律《\(gift.melodyName)》已存入旋律库，去欣赏页即可聆听。"
+            importNote = gift.importInto(giftStore: giftStore, melodyStore: store)
             Haptics.medium()
         } catch {
             importNote = "导入失败：所选文件不是有效的礼物文件。"
