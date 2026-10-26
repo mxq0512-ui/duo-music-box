@@ -27,6 +27,15 @@ final class PlaybackMathTests: XCTestCase {
         XCTAssertEqual(PlaybackMath.loopStep(stepFloat: 5, stepCount: 0), 0, "零步数不崩溃")
     }
 
+    func testStepOnsetTime() {
+        // 恰在步界：发声瞬间就是当前时刻。
+        XCTAssertEqual(PlaybackMath.stepOnsetTime(now: 100, stepFloat: 10.0, stepDuration: 0.3), 100, accuracy: 1e-9)
+        // 已深入该步 1/4 步长（100 BPM 一步 0.3s）：回拨 0.075s。
+        XCTAssertEqual(PlaybackMath.stepOnsetTime(now: 100, stepFloat: 10.25, stepDuration: 0.3), 99.925, accuracy: 1e-9)
+        // 接近下一步界：回拨接近一整步。
+        XCTAssertEqual(PlaybackMath.stepOnsetTime(now: 100, stepFloat: 10.999, stepDuration: 0.3), 99.7003, accuracy: 1e-9)
+    }
+
     func testRotationDegrees() {
         XCTAssertEqual(PlaybackMath.rotationDegrees(stepFloat: 0, stepCount: 16), 0, accuracy: 1e-9)
         XCTAssertEqual(PlaybackMath.rotationDegrees(stepFloat: 4, stepCount: 16), 90, accuracy: 1e-9)
