@@ -41,6 +41,7 @@
 
 /* Begin PBXFileReference section */
 		FA0000000000000000000001 /* DuoMusicBoxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuoMusicBoxApp.swift; sourceTree = "<group>"; };
+		FA00000000000000000000F1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FA0000000000000000000002 /* Melody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Melody.swift; sourceTree = "<group>"; };
 		FA0000000000000000000003 /* MelodyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MelodyStore.swift; sourceTree = "<group>"; };
 		FA0000000000000000000004 /* GiftPackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftPackage.swift; sourceTree = "<group>"; };
@@ -104,6 +105,7 @@
 			isa = PBXGroup;
 			children = (
 				FA0000000000000000000001 /* DuoMusicBoxApp.swift */,
+				FA00000000000000000000F1 /* Info.plist */,
 				D1A000000000000000000005 /* Models */,
 				D1A000000000000000000006 /* Audio */,
 				D1A000000000000000000007 /* Views */,
@@ -355,6 +357,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DuoMusicBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DUO MUSIC BOX";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -382,6 +385,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DuoMusicBox/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "DUO MUSIC BOX";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
