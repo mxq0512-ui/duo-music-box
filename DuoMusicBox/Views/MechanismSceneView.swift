@@ -244,6 +244,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // 挤出壁面又是另一套 UV，拉丝的走向与频率不可控，故不加，齿轮走纯色 +
         // 倒角高光的路线。
         let gearBrass = pbrMaterial(color: (0.74, 0.57, 0.27), metalness: 1.0, roughness: 0.34)
+        gearBrass.roughness.contents = ProceduralTextures.brushedRoughness
+        let gearBrassDark = pbrMaterial(color: (0.64, 0.48, 0.22), metalness: 1.0, roughness: 0.38)
+        gearBrassDark.roughness.contents = ProceduralTextures.brushedRoughness
         let grooveBrass = pbrMaterial(color: (0.38, 0.27, 0.10), metalness: 0.9, roughness: 0.50)
         // 钢件（音梳/转轴/螺丝）：冷色调抛光钢，与暖黄铜形成材质对照。
         // 珍藏级一轮：粗糙度 0.18 → 0.13，梳齿与转轴近镜面，冷光刃口更利。
@@ -394,14 +397,14 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         for side in [-1, 1] {
             let plate = SCNNode(geometry: SCNBox(width: 0.09, height: 1.7, length: 1.7, chamferRadius: 0.02))
             plate.geometry?.materials = [plateFace, plateFace, brassDark, brassDark, plateEdge, brassDark]
-            plate.position = SCNVector3(Float(side) * 1.94, 0.1, 0)
+            plate.position = SCNVector3(Float(side) * 2.01, 0.1, 0)
             root.addChildNode(plate)
 
             // 轴套：转轴穿出端板处的抛光圆盖（鼓轴在 y = drumY）。
             let collar = SCNNode(geometry: SCNCylinder(radius: 0.13, height: 0.07))
             collar.geometry?.firstMaterial = brassBright
             collar.eulerAngles.z = Float.pi / 2
-            collar.position = SCNVector3(Float(side) * 1.91, drumY, 0)
+            collar.position = SCNVector3(Float(side) * 1.98, drumY, 0)
             root.addChildNode(collar)
 
             // 前缘螺丝：圆头（深钢）+ 一字槽（恒定深色小盒假造），与齿轮螺丝同规格。
@@ -409,11 +412,11 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
                 let screw = SCNNode(geometry: SCNCylinder(radius: 0.032, height: 0.026))
                 screw.geometry?.firstMaterial = steelDark
                 screw.eulerAngles.x = Float.pi / 2
-                screw.position = SCNVector3(Float(side) * 1.94, Float(0.1 + dy), 0.855)
+                screw.position = SCNVector3(Float(side) * 2.01, Float(0.1 + dy), 0.855)
                 root.addChildNode(screw)
                 let slot = SCNNode(geometry: SCNBox(width: 0.052, height: 0.011, length: 0.012, chamferRadius: 0))
                 slot.geometry?.firstMaterial = ringMaterial
-                slot.position = SCNVector3(Float(side) * 1.94, Float(0.1 + dy), 0.87)
+                slot.position = SCNVector3(Float(side) * 2.01, Float(0.1 + dy), 0.87)
                 root.addChildNode(slot)
             }
         }
@@ -445,7 +448,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // 转轴：微调轮半径 0.055 → 0.077（+40%），读作实心轴杆而非铁丝；
         // 全长 3.9 → 3.87：端板外表面在 ±1.905，轴端外伸由 0.045 收至约 0.03
         //（−30%），仍完整贯穿端板。
-        let axle = SCNNode(geometry: SCNCylinder(radius: 0.068, height: 4.02))
+        let axle = SCNNode(geometry: SCNCylinder(radius: 0.068, height: 4.17))
         axle.geometry?.firstMaterial = steel
         axle.eulerAngles.z = Float.pi / 2
         drumGroup.addChildNode(axle)
@@ -468,7 +471,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         buildColumnRings()
 
         // —— 音梳：基座横梁在滚筒前上方，8 齿与音高列严格对齐 ——
-        let combBase = SCNNode(geometry: SCNBox(width: 3.75, height: 0.13, length: 0.30, chamferRadius: 0.02))
+        let combBase = SCNNode(geometry: SCNBox(width: 3.90, height: 0.13, length: 0.30, chamferRadius: 0.02))
         combBase.geometry?.firstMaterial = steel
         combBase.position = SCNVector3(0, 1.34, 0.86)
         root.addChildNode(combBase)
@@ -476,7 +479,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             let screw = SCNNode(geometry: SCNCylinder(radius: 0.035, height: 0.03))
             screw.geometry?.firstMaterial = steelDark
             screw.eulerAngles.x = Float.pi / 2
-            screw.position = SCNVector3(Float(side) * 1.62, 1.34, 1.045)
+            screw.position = SCNVector3(Float(side) * 1.70, 1.34, 1.045)
             root.addChildNode(screw)
         }
 
@@ -528,12 +531,19 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // —— 齿轮组（滚筒下方，面向观者）——
         bigGearGroup = makeGear(teeth: 12, outerRadius: 0.52, material: gearBrass,
                                 hubMaterial: steel, darkMaterial: steelDark)
-        bigGearGroup.position = SCNVector3(-1.18, -1.32, 0.32)
+        bigGearGroup.position = SCNVector3(-1.18, -1.20, 0.32)
         root.addChildNode(bigGearGroup)
+        // 大齿轮正面同轴叠一颗深钢色小齿环（真实齿轮系的叠轮结构）：
+        // 作为 bigGearGroup 的子节点随其同速旋转，前后两层金属的
+        // 色差与错位让齿轮组从"一块平板"变成装配好的轮系。
+        let bigPinion = makeGear(teeth: 10, outerRadius: 0.30, material: steelDark,
+                                 hubMaterial: steelDark, darkMaterial: steelDark)
+        bigPinion.position = SCNVector3(0, 0, 0.13)
+        bigGearGroup.addChildNode(bigPinion)
 
-        smallGearGroup = makeGear(teeth: 8, outerRadius: 0.37, material: gearBrass,
+        smallGearGroup = makeGear(teeth: 8, outerRadius: 0.37, material: gearBrassDark,
                                   hubMaterial: steel, darkMaterial: steelDark)
-        smallGearGroup.position = SCNVector3(-0.469, -1.579, 0.32)
+        smallGearGroup.position = SCNVector3(-0.469, -1.459, 0.32)
         root.addChildNode(smallGearGroup)
 
         // 调速器：两片交叉翼片（Phase 1 governor 的 3D 对应物）
@@ -655,6 +665,22 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
         }
         path.close()
+        // 减重孔：轮毂与轮缘之间 5 个圆孔（偶奇填充规则挖洞）——
+        // 真实机芯齿轮多有减重/工艺孔，孔缘的高光与透光的暗部
+        // 是齿轮摆脱"平面剪影感"最有效的一笔。孔环半径取根圆与轮毂之间，
+        // 孔径 0.15R，相邻孔间辐条宽约 0.36R，不削弱轮廓可信度。
+        if outerRadius >= 0.34 {
+            path.usesEvenOddFillRule = true
+            let holeRing = outerRadius * 0.52
+            let holeRadius = outerRadius * 0.15
+            for k in 0..<5 {
+                let a = Double(k) / 5 * 2 * Double.pi - Double.pi / 2
+                let cx = holeRing * cos(a), cy = holeRing * sin(a)
+                let hole = UIBezierPath(ovalIn: CGRect(x: cx - holeRadius, y: cy - holeRadius,
+                                                        width: holeRadius * 2, height: holeRadius * 2))
+                path.append(hole)
+            }
+        }
         let shape = SCNShape(path: path, extrusionDepth: 0.12)
         // 倒角即挤出形状的 bevel 表达：SCNShape 并无 bevelEnabled/bevelAmount 属性
         // （已核对 API），斜边由 chamferRadius + chamferMode(.both) 在前后两端生成，
