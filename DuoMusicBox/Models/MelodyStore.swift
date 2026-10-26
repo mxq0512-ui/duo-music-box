@@ -60,7 +60,11 @@ public final class MelodyStore: ObservableObject {
         }
         if let data = try? Data(contentsOf: fileURL),
            let decoded = try? JSONDecoder().decode([Melody].self, from: data) {
-            melodies = decoded
+            // Phase 3 迁移：未被用户改动过的旧版（16 步）预置换成 64 步现行版，
+            // 用户改过的与自建的一律不动；有变更才回写（迁移逻辑见 Melody.refreshingLegacyPresets）。
+            let migrated = Melody.refreshingLegacyPresets(decoded)
+            melodies = migrated
+            if migrated != decoded { persist() }
         } else {
             // 文件损坏时不崩溃：退回预置，但保留损坏文件不覆盖，方便排查。
             melodies = Melody.presets
