@@ -147,6 +147,16 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     private var lastTriggerTime: CFTimeInterval = -1
     private var lastWindingAngle: Double = .nan
     private var lastWindingChange: CFTimeInterval = 0
+
+    // 编曲模式手动滚筒（Phase 3）：纵向拖动把滚筒转到想放钉的位置。
+    // manualDrumOffsetDegrees 与播放旋转叠加在鼓体上；播放一起步即逐帧衰减归零，
+    // 由播放时钟平滑接管。dragStartOffset/dragMoved 供手势消歧：拖动结束 0.3 秒内的
+    // 点按视为拖动的收尾，不触发装/拆钉。
+    private var manualDrumOffsetDegrees: Double = 0
+    private var lastPlaybackRotation: Double = 0
+    private var dragStartOffset: Double = 0
+    private var dragMoved = false
+    private var lastDragEndTime: CFTimeInterval = 0
     private var strikeTimes: [Int: TimeInterval] = [:]
     private let strikeLock = NSLock()
     private var editing = false
@@ -192,6 +202,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         view.isPlaying = true
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         view.addGestureRecognizer(tap)
+        // 编曲模式拖动滚筒：与点按并存，靠位移阈值与收尾时间窗消歧（见 handlePan）。
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        view.addGestureRecognizer(pan)
         startParallaxMotion()
     }
 
@@ -635,8 +648,16 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
                 isEditing: Bool, onToggleNote: ((Int, Int) -> Void)?) {
         editing = isEditing
         toggleHandler = onToggleNote
+        lastPlaybackRotation = rotationDegrees
 
-        drumGroup.eulerAngles.x = Float(MechanismMath.drumRotationRadians(rotationDegrees: rotationDegrees))
+        // 手动滚筒偏移：仅叠加于鼓体（齿轮/调速器仍由播放时钟驱动）；
+        // 播放中逐帧衰减归零，让播放位置平滑接管，避免画面跳变。
+        if playback?.isPlaying == true, manualDrumOffsetDegrees != 0 {
+            manualDrumOffsetDegrees *= 0.75
+            if abs(manualDrumOffsetDegrees) < 0.05 { manualDrumOffsetDegrees = 0 }
+        }
+        let effectiveRotation = rotationDegrees + manualDrumOffsetDegrees
+        drumGroup.eulerAngles.x = Float(MechanismMath.drumRotationRadians(rotationDegrees: effectiveRotation))
         bigGearGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
             clockwiseDegrees: MechanismMath.bigGearDegrees(cylinderRotation: rotationDegrees)))
         smallGearGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
@@ -704,7 +725,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         buildColumnRings()
         stepRingGeometry.firstMaterial = ringMaterial
         let radius = MechanismMath.drumRadius + 0.004
-        for s in 0..<stepCount {
+        // 刻度环密度恒定策略：64 步时每 4 步一环，避免鼓面被细环糊满（见 MechanismMath.stepRingStride）。
+        let stride = MechanismMath.stepRingStride(stepCount: stepCount)
+        for s in Swift.stride(from: 0, to: stepCount, by: stride) {
             let a = MechanismMath.pinAngleRadians(step: s, stepCount: stepCount)
             let ring = SCNNode(geometry: stepRingGeometry)
             ring.position = SCNVector3(0, Float(radius * sin(a)), Float(radius * cos(a)))
@@ -838,6 +861,8 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     /// 两条路径同为落位公式的逆运算，与编曲网格、CylinderView 的点按结果一致。
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         guard editing, let toggleHandler, let view = sceneView, gesture.state == .ended else { return }
+        // 拖动收尾的抬指不是点按：0.3 秒时间窗内忽略，避免滚完筒顺手拆掉一颗钉。
+        if CACurrentMediaTime() - lastDragEndTime < 0.3 { return }
         let point = gesture.location(in: view)
         let hits = view.hitTest(point, options: nil)
         for hit in hits {
@@ -862,6 +887,35 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
                     return
                 }
             }
+        }
+    }
+
+    // MARK: 拖动滚筒（编曲模式，Phase 3）
+
+    /// 纵向拖动 = 滚动滚筒：鼓面跟随手指同向滚动（手指下滑，鼓面正前方随之下行，
+    /// 与播放时音钉自上而下抵达拨弦线的方向一致，故偏移与播放旋转同号叠加）。
+    /// 播放中不接管（播放时钟独占鼓体，偏移由 update 逐帧衰减归零）。
+    /// 灵敏度 0.5°/pt：约 180pt 的滑动滚过四分之一圈，定位单步（64 步时 5.6°）足够细。
+    @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard editing, let view = sceneView, playback?.isPlaying != true else { return }
+        let translation = gesture.translation(in: view)
+        switch gesture.state {
+        case .began:
+            dragStartOffset = manualDrumOffsetDegrees
+            dragMoved = false
+        case .changed:
+            if abs(translation.y) > 8 { dragMoved = true }
+            if dragMoved {
+                manualDrumOffsetDegrees = dragStartOffset + Double(translation.y) * 0.5
+                // 直接落到鼓体不等下一次 update：拖动跟手优先；下一次 update 会以同值重写。
+                drumGroup.eulerAngles.x = Float(MechanismMath.drumRotationRadians(
+                    rotationDegrees: lastPlaybackRotation + manualDrumOffsetDegrees))
+            }
+        case .ended, .cancelled:
+            if dragMoved { lastDragEndTime = CACurrentMediaTime() }
+            dragMoved = false
+        default:
+            break
         }
     }
 }
