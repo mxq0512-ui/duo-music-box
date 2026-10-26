@@ -147,6 +147,14 @@ public struct GiftView: View {
                 .buttonStyle(.plain)
             }
 
+            // 网页礼物：单个 HTML 文件，对方免 App 在浏览器/微信里打开就能听。
+            if let gift = draftGift {
+                ShareLink(item: WebGiftFile(package: gift),
+                          preview: SharePreview(gift.title, image: Image(systemName: "globe"))) {
+                    shareLabel(systemImage: "globe", title: "分享网页礼物（免 App 打开就能听）")
+                }
+            }
+
             if let note = importNote {
                 Text(note)
                     .font(.system(size: 11))
@@ -224,6 +232,12 @@ public struct GiftView: View {
                         ShareLink(item: gift,
                                   preview: SharePreview(gift.title, image: Image(systemName: "gift.fill"))) {
                             Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.brassBright)
+                        }
+                        ShareLink(item: WebGiftFile(package: gift),
+                                  preview: SharePreview(gift.title, image: Image(systemName: "globe"))) {
+                            Image(systemName: "globe")
                                 .font(.system(size: 12))
                                 .foregroundStyle(Theme.brassBright)
                         }
