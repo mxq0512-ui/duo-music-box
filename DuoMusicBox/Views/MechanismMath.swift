@@ -9,8 +9,8 @@ import Foundation
 /// - 正向（音钉落位）与逆向（点按反解）共用本文件同一组公式，保证互逆。
 public enum MechanismMath {
     /// 3D 场景中滚筒的半径与轴向长度（场景单位，与 MechanismSceneView 共用同一组尺寸）。
-    public static let drumRadius = 1.0
-    public static let drumLength = 3.8
+    public static let drumRadius = 0.90
+    public static let drumLength = 3.45
 
     // MARK: - 音钉落位（正向）
 

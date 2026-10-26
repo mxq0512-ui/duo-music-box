@@ -18,6 +18,10 @@ public final class MusicBoxAudioEngine: ObservableObject {
     /// 迟迟不出声（用户实测：正在播放时转上发条没有声音）。独立节点后机械声永远
     /// 立即发声，与音乐并行混合。
     private let mechanicalPlayer = AVAudioPlayerNode()
+    /// 音符专用小房间混响（机械声不经过，保持干脆）。
+    /// 程序合成的干声偏"实验室"，一层 13% 的小房间混响把每个音放进
+    /// 一个虚拟木盒/房间里，是音质提升里感知最强的一项（内置单元、无素材）。
+    private let toneReverb = AVAudioUnitReverb()
     private let format: AVAudioFormat
 
     /// [pitchIndex][velocityLayer]，力度层增益见 velocityGains。
@@ -37,7 +41,11 @@ public final class MusicBoxAudioEngine: ObservableObject {
             format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
         }
         engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.attach(toneReverb)
+        toneReverb.loadFactoryPreset(.smallRoom)
+        toneReverb.wetDryMix = 13
+        engine.connect(player, to: toneReverb, format: format)
+        engine.connect(toneReverb, to: engine.mainMixerNode, format: format)
         engine.attach(mechanicalPlayer)
         engine.connect(mechanicalPlayer, to: engine.mainMixerNode, format: format)
         synthesizeAll()
@@ -88,7 +96,10 @@ public final class MusicBoxAudioEngine: ObservableObject {
     private func synthesizeAll() {
         toneBuffers = Pitch.allCases.map { pitch in
             Self.velocityGains.map { gain in
-                synthesizeTone(frequency: pitch.frequency, gain: gain)
+                // 声像按音高展开（低音偏左、高音偏右，±0.22）：真实音梳的
+                // 低音齿在左、高音齿在右，听者正对机芯时有自然的横向分布。
+                let pan = -0.22 + 0.44 * Double(pitch.index) / Double(Pitch.allCases.count - 1)
+                return synthesizeTone(frequency: pitch.frequency, gain: gain, pan: pan)
             }
         }
         clickBuffer = synthesizeClick()
@@ -97,7 +108,7 @@ public final class MusicBoxAudioEngine: ObservableObject {
     }
 
     /// 八音盒单音：非谐泛音 + 分层衰减。返回单声道样本后复制到各声道。
-    private func synthesizeTone(frequency f: Double, gain: Float) -> AVAudioPCMBuffer {
+    private func synthesizeTone(frequency f: Double, gain: Float, pan: Double = 0) -> AVAudioPCMBuffer {
         let sr = format.sampleRate
         let seconds = 1.8
         let count = Int(sr * seconds)
@@ -106,6 +117,7 @@ public final class MusicBoxAudioEngine: ObservableObject {
             (1.00, 1.00, 0.85),
             (2.01, 0.10, 0.45),
             (3.98, 0.34, 0.30),
+            (5.41, 0.05, 0.18),
             (9.24, 0.13, 0.13),
             (16.80, 0.05, 0.06),
         ]
@@ -119,6 +131,10 @@ public final class MusicBoxAudioEngine: ObservableObject {
             for p in partials {
                 v += p.amp * sin(2 * Double.pi * f * p.ratio * t) * exp(-t / p.tau)
             }
+            // 木腔共鸣（烤入样本）：168Hz 盒体基频 + 336Hz 一层，衰减快、
+            // 只在起音段存在——给每个音一个"装在木盒里"的身体感。
+            v += 0.10 * sin(2 * Double.pi * 168 * t) * exp(-t / 0.085)
+            v += 0.045 * sin(2 * Double.pi * 336 * t) * exp(-t / 0.05)
             // 起音瞬间 6ms 的拨弦噪声（确定性伪噪声，可复现）。
             if t < 0.02 {
                 v += 0.18 * Double(Self.pseudoNoise(i)) * exp(-t / 0.004)
@@ -129,7 +145,25 @@ public final class MusicBoxAudioEngine: ObservableObject {
         }
         let scale: Float = peak > 0 ? (0.85 / peak) : 1
         for i in 0..<count { samples[i] *= scale }
-        return makeBuffer(samples: samples)
+        return makeStereoBuffer(samples: samples, pan: pan)
+    }
+
+    /// 立体声写入：等功率声像（左 = cos、右 = sin），声像角由 pitch 决定。
+    private func makeStereoBuffer(samples: [Float], pan: Double) -> AVAudioPCMBuffer {
+        let frameCount = AVAudioFrameCount(samples.count)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+        buffer.frameLength = frameCount
+        let theta = (pan + 1) * Double.pi / 4
+        let leftGain = Float(cos(theta))
+        let rightGain = Float(sin(theta))
+        if let data = buffer.floatChannelData {
+            let channels = Int(format.channelCount)
+            for i in 0..<samples.count {
+                data[0][i] = samples[i] * leftGain
+                if channels > 1 { data[1][i] = samples[i] * rightGain }
+            }
+        }
+        return buffer
     }
 
     /// click：6ms 噪声突起 + 2.4kHz 短促正弦，模拟金属钉落位。

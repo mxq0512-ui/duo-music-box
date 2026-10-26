@@ -130,8 +130,8 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
     // 音钉（珍藏级一轮）：半径 0.048 → 0.05、段数提到 28（球面更圆、镜面高光更整），
     // 材质改用专用抛光黄铜（见 buildScene 的 pinMaterial），不再与钥匙共用。
     private let pinGeometry: SCNSphere = {
-        let sphere = SCNSphere(radius: 0.05)
-        sphere.segmentCount = 28
+        let sphere = SCNSphere(radius: 0.042)
+        sphere.segmentCount = 32
         return sphere
     }()
     private let stepRingGeometry = SCNBox(width: CGFloat(MechanismMath.drumLength),
@@ -303,14 +303,14 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         key.light = SCNLight()
         key.light?.type = .directional
         key.light?.color = UIColor(red: 1.0, green: 0.93, blue: 0.80, alpha: 1)
-        key.light?.intensity = 2.0
+        key.light?.intensity = 2.1
         // 投影：方向光的影相机用自动投影（automaticallyAdjustsShadowProjection
         // 显式打开）——场景包围盒只有约 5.0×4.6×2.6，自动拟合已足够紧、分辨率够用；
         // 手设 orthographicScale/zNear/zFar 反而容易裁掉影子，故不手设。
         key.light?.castsShadow = true
         key.light?.automaticallyAdjustsShadowProjection = true
-        key.light?.shadowMapSize = CGSize(width: 1024, height: 1024)
-        key.light?.shadowRadius = 4
+        key.light?.shadowMapSize = CGSize(width: 2048, height: 2048)
+        key.light?.shadowRadius = 7
         key.light?.shadowColor = UIColor(white: 0, alpha: 0.45)
         key.light?.shadowBias = 0.008
         key.position = SCNVector3(4, 6, 5)
@@ -346,18 +346,23 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         let cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
         cameraNode.camera?.fieldOfView = 47
-        cameraNode.position = SCNVector3(0, 0.35, 5.3)
+        cameraNode.camera?.wantsHDR = true
+        cameraNode.camera?.exposureOffset = 0.0
+        cameraNode.camera?.bloomIntensity = 0.22
+        cameraNode.camera?.bloomThreshold = 0.85
+        cameraNode.camera?.bloomBlurRadius = 6
+        cameraNode.position = SCNVector3(0, 0.42, 5.9)
         cameraNode.constraints = [SCNLookAtConstraint(target: lookTarget)]
         cameraRig.addChildNode(cameraNode)
         root.addChildNode(cameraRig)
 
         // —— 盒体：胡桃木背板 + 底座 ——
-        let backPanel = SCNNode(geometry: SCNBox(width: 5.0, height: 4.4, length: 0.22, chamferRadius: 0.03))
+        let backPanel = SCNNode(geometry: SCNBox(width: 8.4, height: 6.6, length: 0.22, chamferRadius: 0.03))
         backPanel.geometry?.firstMaterial = wood
         backPanel.position = SCNVector3(0, -0.05, -1.1)
         root.addChildNode(backPanel)
 
-        let plinth = SCNNode(geometry: SCNBox(width: 5.0, height: 0.28, length: 2.4, chamferRadius: 0.03))
+        let plinth = SCNNode(geometry: SCNBox(width: 8.4, height: 0.28, length: 2.4, chamferRadius: 0.03))
         plinth.geometry?.firstMaterial = wood
         plinth.position = SCNVector3(0, -2.3, -0.15)
         root.addChildNode(plinth)
@@ -389,14 +394,14 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         for side in [-1, 1] {
             let plate = SCNNode(geometry: SCNBox(width: 0.09, height: 1.7, length: 1.7, chamferRadius: 0.02))
             plate.geometry?.materials = [plateFace, plateFace, brassDark, brassDark, plateEdge, brassDark]
-            plate.position = SCNVector3(Float(side) * 2.11, 0.1, 0)
+            plate.position = SCNVector3(Float(side) * 1.94, 0.1, 0)
             root.addChildNode(plate)
 
             // 轴套：转轴穿出端板处的抛光圆盖（鼓轴在 y = drumY）。
             let collar = SCNNode(geometry: SCNCylinder(radius: 0.13, height: 0.07))
             collar.geometry?.firstMaterial = brassBright
             collar.eulerAngles.z = Float.pi / 2
-            collar.position = SCNVector3(Float(side) * 2.08, drumY, 0)
+            collar.position = SCNVector3(Float(side) * 1.91, drumY, 0)
             root.addChildNode(collar)
 
             // 前缘螺丝：圆头（深钢）+ 一字槽（恒定深色小盒假造），与齿轮螺丝同规格。
@@ -404,11 +409,11 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
                 let screw = SCNNode(geometry: SCNCylinder(radius: 0.032, height: 0.026))
                 screw.geometry?.firstMaterial = steelDark
                 screw.eulerAngles.x = Float.pi / 2
-                screw.position = SCNVector3(Float(side) * 2.11, Float(0.1 + dy), 0.855)
+                screw.position = SCNVector3(Float(side) * 1.94, Float(0.1 + dy), 0.855)
                 root.addChildNode(screw)
                 let slot = SCNNode(geometry: SCNBox(width: 0.052, height: 0.011, length: 0.012, chamferRadius: 0))
                 slot.geometry?.firstMaterial = ringMaterial
-                slot.position = SCNVector3(Float(side) * 2.11, Float(0.1 + dy), 0.87)
+                slot.position = SCNVector3(Float(side) * 1.94, Float(0.1 + dy), 0.87)
                 root.addChildNode(slot)
             }
         }
@@ -440,7 +445,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         // 转轴：微调轮半径 0.055 → 0.077（+40%），读作实心轴杆而非铁丝；
         // 全长 3.9 → 3.87：端板外表面在 ±1.905，轴端外伸由 0.045 收至约 0.03
         //（−30%），仍完整贯穿端板。
-        let axle = SCNNode(geometry: SCNCylinder(radius: 0.077, height: 4.37))
+        let axle = SCNNode(geometry: SCNCylinder(radius: 0.068, height: 4.02))
         axle.geometry?.firstMaterial = steel
         axle.eulerAngles.z = Float.pi / 2
         drumGroup.addChildNode(axle)
@@ -463,7 +468,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         buildColumnRings()
 
         // —— 音梳：基座横梁在滚筒前上方，8 齿与音高列严格对齐 ——
-        let combBase = SCNNode(geometry: SCNBox(width: 4.1, height: 0.17, length: 0.34, chamferRadius: 0.02))
+        let combBase = SCNNode(geometry: SCNBox(width: 3.75, height: 0.13, length: 0.30, chamferRadius: 0.02))
         combBase.geometry?.firstMaterial = steel
         combBase.position = SCNVector3(0, 1.34, 0.86)
         root.addChildNode(combBase)
@@ -471,20 +476,20 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             let screw = SCNNode(geometry: SCNCylinder(radius: 0.035, height: 0.03))
             screw.geometry?.firstMaterial = steelDark
             screw.eulerAngles.x = Float.pi / 2
-            screw.position = SCNVector3(Float(side) * 1.80, 1.34, 1.045)
+            screw.position = SCNVector3(Float(side) * 1.62, 1.34, 1.045)
             root.addChildNode(screw)
         }
 
         // 梳齿指向：齿根（1.27, 0.98）→ 齿尖目标为鼓面 38° 处，二者之差决定齿的俯角。
-        let tipY = Double(drumY) + 1.03 * sin(38.0 * Double.pi / 180)
-        let tipZ = 1.03 * cos(38.0 * Double.pi / 180)
+        let tipY = Double(drumY) + (MechanismMath.drumRadius + 0.03) * sin(38.0 * Double.pi / 180)
+        let tipZ = (MechanismMath.drumRadius + 0.03) * cos(38.0 * Double.pi / 180)
         let gamma = atan2(tipY - 1.27, -(tipZ - 0.98)) // 绕 X 的俯角，推导见 MechanismMath 注释
         let colW = MechanismMath.drumLength / Double(Melody.pitchCount)
         for p in 0..<Melody.pitchCount {
             let toothLength = 0.47 - Double(p) * 0.017 // 低音齿长、高音齿短（真实音梳规律）
             let toothMaterial = (steel.copy() as? SCNMaterial) ?? steel
-            let mesh = SCNNode(geometry: SCNBox(width: 0.17, height: 0.024,
-                                                length: CGFloat(toothLength), chamferRadius: 0.004))
+            let mesh = SCNNode(geometry: SCNBox(width: 0.125, height: 0.018,
+                                                length: CGFloat(toothLength), chamferRadius: 0.003))
             mesh.geometry?.firstMaterial = toothMaterial
             mesh.position = SCNVector3(0, 0, Float(-toothLength / 2)) // 几何挂在齿根之后，枢轴在齿根
             let tooth = SCNNode()
@@ -498,17 +503,17 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             toothMaterials.append(toothMaterial)
         }
 
-        // —— 装饰密齿（用户要求"拨片加密"）：8 颗功能齿与音高/音钉严格对应
-        // 不能动，于是在每两颗功能齿之间补 3 颗细齿（共 21 颗，全梳 29 颗），
+        // —— 装饰密齿（用户两轮反馈"拨片要密、要精细"）：8 颗功能齿与音高/音钉
+        // 严格对应不能动，于是在每两颗功能齿之间补 5 颗细齿（共 35 颗，全梳 43 颗），
         // 齿长沿功能齿的长短规律插值。装饰齿不进 teeth 数组（不振动、不发声），
-        // 横向与音钉列错开 ≥0.084（钉半径 0.05 + 齿半宽 0.035），永不相碰——
-        // 纯视觉密度，学真实八音盒的细密钢梳。
+        // 最近的装饰齿内缘与音钉扫掠圆（半径 0.042）留约 0.010 间隙——真实八音盒
+        // 本就是钉从齿缝间穿过、只拨响其中一颗，密而紧凑正是其观感来源。
         for p in 0..<(Melody.pitchCount - 1) {
-            for f in 1...3 {
-                let frac = Double(f) / 4.0
+            for f in 1...5 {
+                let frac = Double(f) / 6.0
                 let dummyLength = 0.47 - (Double(p) + frac) * 0.017
-                let mesh = SCNNode(geometry: SCNBox(width: 0.07, height: 0.020,
-                                                    length: CGFloat(dummyLength), chamferRadius: 0.003))
+                let mesh = SCNNode(geometry: SCNBox(width: 0.040, height: 0.015,
+                                                    length: CGFloat(dummyLength), chamferRadius: 0.002))
                 mesh.geometry?.firstMaterial = steel
                 mesh.position = SCNVector3(0, 0, Float(-dummyLength / 2))
                 let dummy = SCNNode()

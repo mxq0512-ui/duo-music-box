@@ -24,7 +24,7 @@ public enum ProceduralTextures {
 
     /// 滚筒专用拉丝（珍藏级一轮）：在通用拉丝之上加两端渐暗（鼓面边缘吃光更沉，
     /// 衬出中段的高光带）+ 更密的细划痕与零星深色氧化斑——真黄铜滚筒的"年资感"。
-    public static let brushedBrassDrum: UIImage = makeBrushedBrassTexture(base: (0.84, 0.66, 0.31), seed: 23, edgeShade: true)
+    public static let brushedBrassDrum: UIImage = makeBrushedBrassTexture(base: (0.84, 0.66, 0.31), seed: 23, edgeShade: true, resolution: 1024)
 
     /// 拉丝法线图（512×512）：把逐行拉丝转成法线扰动（绿通道随行起伏），
     /// 掠射光下鼓面出现细密的环向沟纹光泽——漫反射贴图给不了的"摸得出的拉丝"。
@@ -244,8 +244,8 @@ public enum ProceduralTextures {
 
     /// 拉丝底色烤入 diffuse：SceneKit 的 PBR 漫反射槽位只能放一个 contents，
     /// 贴图即颜色本身，故底色作为参数传入（鼓面亮版 / 发条筒深版共用一套算法）。
-    private static func makeBrushedBrassTexture(base: (Double, Double, Double), seed: Int, edgeShade: Bool = false) -> UIImage {
-        let size = CGSize(width: 512, height: 512)
+    private static func makeBrushedBrassTexture(base: (Double, Double, Double), seed: Int, edgeShade: Bool = false, resolution: Int = 512) -> UIImage {
+        let size = CGSize(width: CGFloat(resolution), height: CGFloat(resolution))
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
             let cg = ctx.cgContext
@@ -255,8 +255,8 @@ public enum ProceduralTextures {
 
             // 逐行拉丝：每行（= 圆柱 v 向一圈）亮度做 ±5% 确定性微扰；
             // 同一行内沿 u 恒定，绕鼓一周无接缝。
-            for y in 0..<512 {
-                let delta = (hash(seed &* 1000 &+ y) - 0.5) * 0.10
+            for y in 0..<resolution {
+                let delta = (hash(seed &* 1000 &+ y) - 0.5) * 0.08
                 cg.setFillColor(delta >= 0
                     ? UIColor.white.withAlphaComponent(CGFloat(delta)).cgColor
                     : UIColor.black.withAlphaComponent(CGFloat(-delta)).cgColor)
@@ -265,7 +265,7 @@ public enum ProceduralTextures {
 
             // 抛光带：几段较宽的行带微微提亮（车削/擦拭留下的亮痕）。
             for b in 0..<9 {
-                let y0 = hash(seed &* 31 &+ b) * 512
+                let y0 = hash(seed &* 31 &+ b) * Double(resolution)
                 let height = 5 + hash(seed &* 57 &+ b) * 16
                 cg.setFillColor(UIColor.white.withAlphaComponent(
                     CGFloat(0.03 + 0.04 * hash(seed &* 91 &+ b))).cgColor)
@@ -274,8 +274,8 @@ public enum ProceduralTextures {
 
             // 短划痕：细小水平短线，明暗各半，只在近看时出现。
             for i in 0..<700 {
-                let x = hash(seed &* 131 &+ i) * 512
-                let y = hash(seed &* 197 &+ i) * 512
+                let x = hash(seed &* 131 &+ i) * Double(resolution)
+                let y = hash(seed &* 197 &+ i) * Double(resolution)
                 let len = 6 + hash(seed &* 233 &+ i) * 42
                 let light = hash(seed &* 271 &+ i) > 0.5
                 cg.setFillColor(light
@@ -287,18 +287,18 @@ public enum ProceduralTextures {
             if edgeShade {
                 // 鼓面两端渐暗：v 两端（鼓的左右边缘一带）逐行压沉，
                 // 高光自然收束在中段，端部轮廓更沉稳（真滚筒边缘吃光的样子）。
-                for y in 0..<512 {
-                    let d = min(y, 511 - y)
-                    if d < 46 {
-                        let alpha = 0.13 * (1.0 - Double(d) / 46.0)
+                for y in 0..<resolution {
+                    let d = min(y, resolution - 1 - y)
+                    if d < 46 * resolution / 512 {
+                        let alpha = 0.13 * (1.0 - Double(d) / (46.0 * Double(resolution) / 512.0))
                         cg.setFillColor(UIColor.black.withAlphaComponent(CGFloat(alpha)).cgColor)
                         cg.fill(CGRect(x: 0, y: CGFloat(y), width: size.width, height: 1))
                     }
                 }
                 // 更密的一层细划痕（珍藏级的"使用痕迹"要细，不要粗）。
                 for i in 0..<500 {
-                    let x = hash(seed &* 307 &+ i) * 512
-                    let y = hash(seed &* 347 &+ i) * 512
+                    let x = hash(seed &* 307 &+ i) * Double(resolution)
+                    let y = hash(seed &* 347 &+ i) * Double(resolution)
                     let len = 4 + hash(seed &* 383 &+ i) * 26
                     let light = hash(seed &* 419 &+ i) > 0.45
                     cg.setFillColor(light
@@ -308,8 +308,8 @@ public enum ProceduralTextures {
                 }
                 // 零星氧化斑：极小的深色点，密度低、只在细看时可辨。
                 for i in 0..<130 {
-                    let x = hash(seed &* 439 &+ i) * 512
-                    let y = hash(seed &* 463 &+ i) * 512
+                    let x = hash(seed &* 439 &+ i) * Double(resolution)
+                    let y = hash(seed &* 463 &+ i) * Double(resolution)
                     let w = 1 + hash(seed &* 491 &+ i) * 2.4
                     cg.setFillColor(UIColor.black.withAlphaComponent(
                         CGFloat(0.04 + 0.05 * hash(seed &* 521 &+ i))).cgColor)
@@ -323,15 +323,15 @@ public enum ProceduralTextures {
     /// ±18，每约 37 行压一道更深的沟（绿 -34）——与漫反射逐行扰动同为横行结构，
     /// 掠射时鼓面呈现细密环向沟纹。蓝通道恒 255，红通道恒 128（无轴向倾斜）。
     private static func makeBrushedNormalTexture() -> UIImage {
-        let size = CGSize(width: 512, height: 512)
+        let size = CGSize(width: 1024, height: 1024)
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
             let cg = ctx.cgContext
             cg.setFillColor(UIColor(red: 0.5, green: 0.5, blue: 1.0, alpha: 1).cgColor)
             cg.fill(CGRect(origin: .zero, size: size))
-            for y in 0..<512 {
-                var g = 128.0 + (hash(y &* 13 &+ 41) - 0.5) * 36
-                if y % 37 == 11 { g -= 34 }
+            for y in 0..<1024 {
+                var g = 128.0 + (hash(y &* 13 &+ 41) - 0.5) * 26
+                if y % 23 == 7 { g -= 26 }
                 let clamped = min(255, max(0, g))
                 cg.setFillColor(UIColor(red: 0.5, green: CGFloat(clamped / 255.0), blue: 1.0, alpha: 1).cgColor)
                 cg.fill(CGRect(x: 0, y: CGFloat(y), width: size.width, height: 1))
@@ -340,21 +340,21 @@ public enum ProceduralTextures {
     }
 
     private static func makeBrushedRoughnessTexture() -> UIImage {
-        let size = CGSize(width: 512, height: 512)
+        let size = CGSize(width: 1024, height: 1024)
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
             let cg = ctx.cgContext
             // 基底 0.35；逐行在 0.25–0.45 间变化（与拉丝漫反射同为横行结构）。
             cg.setFillColor(UIColor(white: 0.35, alpha: 1).cgColor)
             cg.fill(CGRect(origin: .zero, size: size))
-            for y in 0..<512 {
+            for y in 0..<1024 {
                 let v = 0.25 + 0.20 * hash(y &* 3 &+ 7)
                 cg.setFillColor(UIColor(white: CGFloat(v), alpha: 1).cgColor)
                 cg.fill(CGRect(x: 0, y: CGFloat(y), width: size.width, height: 1))
             }
             // 几条抛光带压回 0.25：与漫反射的亮带大尺度对应（不要求逐行对齐）。
             for b in 0..<7 {
-                let y0 = hash(b &* 41 &+ 3) * 512
+                let y0 = hash(b &* 41 &+ 3) * 1024.0
                 cg.setFillColor(UIColor(white: 0.25, alpha: 1).cgColor)
                 cg.fill(CGRect(x: 0, y: CGFloat(y0), width: size.width,
                                height: CGFloat(6 + hash(b &* 67 &+ 5) * 14)))
