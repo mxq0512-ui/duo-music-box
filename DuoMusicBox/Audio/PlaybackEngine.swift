@@ -23,6 +23,16 @@ public enum PlaybackMath {
         return m >= 0 ? m : m + stepCount
     }
 
+    /// 某一步的发声瞬间（CACurrentMediaTime 时钟域）：tick 发现步界已被跨过时，
+    /// stepFloat 已深入该步 frac 个步长，发声瞬间 = 当前时刻回拨 frac × 步时长。
+    /// 与 scheduleAhead 给音频排程的 when 是同一条时间轴的两种算法，常速下严格相等；
+    /// 视觉触发（音梳振动）必须用这个回拨值而非"发现时刻"，否则梳齿天生慢半拍
+    /// （2026-10-26 真机反馈：音钉已到位、拨片才动）。
+    public static func stepOnsetTime(now: CFTimeInterval, stepFloat: Double, stepDuration sd: Double) -> CFTimeInterval {
+        let frac = stepFloat - floor(stepFloat)
+        return now - frac * sd
+    }
+
     /// 连续步进位置 → 滚筒旋转角度（度，0 ..< 360）。这是滚筒/齿轮动画的唯一角度来源。
     public static func rotationDegrees(stepFloat: Double, stepCount: Int) -> Double {
         guard stepCount > 0 else { return 0 }
@@ -85,7 +95,7 @@ public final class PlaybackEngine: ObservableObject {
     public struct StepTrigger: Equatable {
         public let step: Int
         public let pitchIndices: [Int]
-        /// 触发时刻（CACurrentMediaTime 时钟域，与 SceneKit 渲染回调的时间同域）。
+        /// 发声瞬间（CACurrentMediaTime 时钟域，与 SceneKit 渲染回调同域；由 PlaybackMath.stepOnsetTime 回拨到步界，而非 tick 的发现时刻）。
         public let time: CFTimeInterval
 
         public init(step: Int, pitchIndices: [Int], time: CFTimeInterval) {
@@ -210,7 +220,7 @@ public final class PlaybackEngine: ObservableObject {
             springCharge = max(0, springCharge - dt * Self.springDrainPerSecond)
             scheduleAhead(now: now, stepDuration: sd)
             // 触发快照与发声共用同一闸门：储能耗尽、声音停下时视觉也不触发。
-            publishTriggerIfStepChanged(now: now)
+            publishTriggerIfStepChanged(now: now, stepDuration: sd)
         }
         // 储能耗尽时 stepFloat 不再前进（曲速渐慢直至停的状态层体现），
         // 但定时器继续跑：用户一上发条即可自动恢复，无需重新按播放。
@@ -221,7 +231,7 @@ public final class PlaybackEngine: ObservableObject {
     /// 与 scheduleAhead 的发声时机对齐（音符在 stepFloat 抵达该格时发声），
     /// 但只是观察，不参与调度。步进因钳制 dt 至多跨一格的常态下不会漏步；
     /// 万一跨过整格，只补发布当前格（视觉效果，不值得为它引入队列）。
-    private func publishTriggerIfStepChanged(now: CFTimeInterval) {
+    private func publishTriggerIfStepChanged(now: CFTimeInterval, stepDuration sd: Double) {
         // 直接由 stepFloat 推导（不读 currentStep）：本方法在 publishPosition 之前调用，
         // 用同一条 PlaybackMath 公式保证与随后发布的位置严格一致。
         let step = PlaybackMath.loopStep(stepFloat: stepFloat, stepCount: melody.stepCount)
@@ -231,7 +241,7 @@ public final class PlaybackEngine: ObservableObject {
         guard !events.isEmpty else { return }
         lastStepTrigger = StepTrigger(step: step,
                                       pitchIndices: events.map(\.pitchIndex),
-                                      time: now)
+                                      time: PlaybackMath.stepOnsetTime(now: now, stepFloat: stepFloat, stepDuration: sd))
     }
 
     private func scheduleAhead(now: CFTimeInterval, stepDuration sd: Double) {
