@@ -785,15 +785,9 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             lastTriggeredPitches = triggeredPitches
         }
 
-        // 音梳振动触发：只读消费 PlaybackEngine 的触发快照；旋律对不上（编曲预览别的草稿）时忽略。
-        if let trigger = playback?.lastStepTrigger, trigger.time != lastTriggerTime {
-            lastTriggerTime = trigger.time
-            if playback?.melody.id == melody.id {
-                strikeLock.lock()
-                for pitch in trigger.pitchIndices { strikeTimes[pitch] = trigger.time }
-                strikeLock.unlock()
-            }
-        }
+        // 音梳振动触发已移到渲染帧回调里直接轮询触发快照（见 renderer(updateAtTime:)）：
+        // 过去在本次 update（SwiftUI 驱动）里登记，发布→视图刷新→登记的链路
+        // 给瞬时事件凭空加了数十毫秒延迟，真机表现为"钉到齿尖、拨片才动"。
 
         if windingKeyAngle != lastWindingAngle {
             lastWindingAngle = windingKeyAngle
@@ -933,6 +927,17 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
 
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         applyParallax(atTime: time)
+        // 逐帧直接轮询引擎的触发快照并登记敲击时刻：与鼓体旋转同在渲染环内消费，
+        // 不再经 SwiftUI 的 update 链路，触发时间戳又是回拨过的发声瞬间，
+        // 梳齿起振与出声的偏差只剩渲染帧级（≤1 帧）。
+        if let trigger = playback?.lastStepTrigger, trigger.time != lastTriggerTime {
+            lastTriggerTime = trigger.time
+            if playback?.melody.id == lastMelody?.id {
+                strikeLock.lock()
+                for pitch in trigger.pitchIndices { strikeTimes[pitch] = trigger.time }
+                strikeLock.unlock()
+            }
+        }
         strikeLock.lock()
         let strikes = strikeTimes
         strikeLock.unlock()
