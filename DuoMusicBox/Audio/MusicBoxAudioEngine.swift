@@ -7,11 +7,17 @@ import QuartzCore
 /// 所有声音都在启动时程序合成，工程不包含任何音频文件，也就没有素材版权问题：
 /// - 音色：基频 + 非谐泛音列（3.98×、9.24×、16.8×，模拟金属音梳的非谐振动），
 ///   快速起音、各自独立的指数衰减，整体余韵约 1.2–1.8 秒；起音瞬间叠一丝拨弦噪声。
-/// - 机械声：放钉 click、上发条 ratchet（棘轮咔哒串）、开盒轻响（低频木质轻叩 + 气声）。
+/// - 机械声：放钉 click、上发条 ratchet（棘轮单齿咔哒）、开盒轻响（低频木质轻叩 + 气声）。
 /// 每个音高预合成 3 个力度层 buffer，按 velocity 选层调度。
 public final class MusicBoxAudioEngine: ObservableObject {
     public let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+    /// 机械声专用播放节点（click / ratchet / 开盒声）。
+    /// 必须与音符分开：AVAudioPlayerNode 对 at:nil 调度是排队顺序播放的，播放中
+    /// 音符 buffer（余韵 1.2–1.8 秒）排成长队，机械声若共用一个节点会被压在队尾
+    /// 迟迟不出声（用户实测：正在播放时转上发条没有声音）。独立节点后机械声永远
+    /// 立即发声，与音乐并行混合。
+    private let mechanicalPlayer = AVAudioPlayerNode()
     private let format: AVAudioFormat
 
     /// [pitchIndex][velocityLayer]，力度层增益见 velocityGains。
@@ -32,6 +38,8 @@ public final class MusicBoxAudioEngine: ObservableObject {
         }
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
+        engine.attach(mechanicalPlayer)
+        engine.connect(mechanicalPlayer, to: engine.mainMixerNode, format: format)
         synthesizeAll()
         configureSession()
         startIfNeeded()
@@ -43,6 +51,7 @@ public final class MusicBoxAudioEngine: ObservableObject {
     public func startIfNeeded() {
         if !engine.isRunning { try? engine.start() }
         if !player.isPlaying { player.play() }
+        if !mechanicalPlayer.isPlaying { mechanicalPlayer.play() }
     }
 
     /// 在指定宿主时间（CACurrentMediaTime 同一时钟域的秒数）发声；
@@ -137,8 +146,7 @@ public final class MusicBoxAudioEngine: ObservableObject {
         return makeBuffer(samples: samples)
     }
 
-    /// ratchet：一串 7 个递减的小咔哒，间隔 28ms，模拟棘轮逐齿滑过。
-    /// 单个棘轮齿的"咔哒"：约 45ms。
+    /// ratchet：单个棘轮齿的"咔哒"，约 45ms。
     /// 旧版是一次触发预合成 7 连响（0.24 秒声列），声列按固定节奏走完，与手的实际
     /// 转速脱节——慢转时声音先跑完、快转时又叠在一起，用户反馈"上发条不同步声音"。
     /// 改为一齿一响：噪声冲击（齿尖弹入齿根）+ 2.1kHz 金属余响（棘爪簧片），
@@ -191,7 +199,7 @@ public final class MusicBoxAudioEngine: ObservableObject {
     private func scheduleMechanical(_ buffer: AVAudioPCMBuffer?) {
         guard let buffer else { return }
         startIfNeeded()
-        player.scheduleBuffer(buffer, at: nil)
+        mechanicalPlayer.scheduleBuffer(buffer, at: nil)
     }
 
     private func configureSession() {
