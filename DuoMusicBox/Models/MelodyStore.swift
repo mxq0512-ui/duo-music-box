@@ -56,6 +56,7 @@ public final class MelodyStore: ObservableObject {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             melodies = Melody.presets
             persist()
+            markAllPresetsKnown()
             return
         }
         if let data = try? Data(contentsOf: fileURL),
@@ -63,12 +64,47 @@ public final class MelodyStore: ObservableObject {
             // Phase 3 迁移：未被用户改动过的旧版（16 步）预置换成 64 步现行版，
             // 用户改过的与自建的一律不动；有变更才回写（迁移逻辑见 Melody.refreshingLegacyPresets）。
             let migrated = Melody.refreshingLegacyPresets(decoded)
-            melodies = migrated
-            if migrated != decoded { persist() }
+            // Phase 4 增量补入：100 首新目录只补"从未见过"的，用户删过的预置
+            // 其 ID 已在"见过"集合里，不会被强行复活。
+            let expanded = appendingNewCatalogPresets(to: migrated)
+            melodies = expanded
+            if expanded != decoded { persist() }
         } else {
             // 文件损坏时不崩溃：退回预置，但保留损坏文件不覆盖，方便排查。
             melodies = Melody.presets
         }
+    }
+
+    // MARK: - 目录增量补入（Phase 4）
+
+    /// UserDefaults 键：记录"已经见过"的预置 ID 集合（墓碑表）。
+    private static let knownPresetIDsKey = "duo.knownPresetIDs.v1"
+
+    /// 本版本之前出厂的预置 ID（Phase 3 及更早，共 3 首）。UserDefaults 尚无记录
+    /// （老用户升级）时以这三个为初始"见过"集合——它们正是老用户库里已有的预置。
+    private static let legacyPresetIDStrings: Set<String> = [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+    ]
+
+    private func markAllPresetsKnown() {
+        UserDefaults.standard.set(Melody.presets.map { $0.id.uuidString },
+                                  forKey: Self.knownPresetIDsKey)
+    }
+
+    /// 把从未见过的目录旋律追加到列表末尾，并把全部现行预置 ID 记入"见过"集合。
+    private func appendingNewCatalogPresets(to list: [Melody]) -> [Melody] {
+        let defaults = UserDefaults.standard
+        let known = Set(defaults.stringArray(forKey: Self.knownPresetIDsKey)
+                        ?? Array(Self.legacyPresetIDStrings))
+        let present = Set(list.map { $0.id.uuidString })
+        let fresh = Melody.libraryCatalog.filter {
+            !known.contains($0.id.uuidString) && !present.contains($0.id.uuidString)
+        }
+        defaults.set(Array(known.union(Melody.presets.map { $0.id.uuidString })),
+                     forKey: Self.knownPresetIDsKey)
+        return list + fresh
     }
 
     private func persist() {
