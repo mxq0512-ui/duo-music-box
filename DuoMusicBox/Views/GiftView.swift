@@ -1,11 +1,14 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// 数字礼物（界面六 Gift）——Phase 1 范围：真实数据模型 + 本地草稿。
+/// 数字礼物（界面六 Gift）：礼物包（旋律快照 + 标题 + 祝福）本地草稿 +
+/// 系统分享文件 + 导入。
 ///
-/// 诚实边界：交接书 Phase 4 才交付"生成链接 → 浏览器免安装打开播放"的线上服务
-/// （涉及链接存储、隐私、失效与滥用防护，需单独设计）。Phase 1 只把礼物包
-/// （旋律快照 + 标题 + 祝福）完整建模并存到本地，界面不生成任何假链接、
-/// 不假装已发送。数据结构已自包含，Phase 4 可直接在其上加编码与分享。
+/// 分享走系统分享面板：把整个礼物导出为文件（.json），经微信、隔空投送、
+/// 信息发出；对方装有本 App 时在礼物页「导入礼物」选中该文件即可打开聆听，
+/// 旋律同时存入对方的旋律库。
+/// 诚实边界：交接书 Phase 4 的"生成链接 → 浏览器免安装打开播放"需要线上服务
+/// （链接存储、隐私、失效与滥用防护），仍未开通——这里不会生成假链接。
 public struct GiftView: View {
     @ObservedObject public var store: MelodyStore
     @StateObject private var giftStore = GiftStore()
@@ -14,6 +17,8 @@ public struct GiftView: View {
     @State private var title = ""
     @State private var message = ""
     @State private var justSaved = false
+    @State private var showingImporter = false
+    @State private var importNote: String?
 
     public init(store: MelodyStore) {
         self.store = store
@@ -22,6 +27,17 @@ public struct GiftView: View {
     private var selectedMelody: Melody? {
         if let id = selectedMelodyId, let m = store.melody(id: id) { return m }
         return store.melodies.first
+    }
+
+    private var resolvedTitle: String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "一份音乐礼物" : trimmed
+    }
+
+    /// 正在编辑的礼物（分享当前编排，无需先保存草稿）。
+    private var draftGift: GiftPackage? {
+        guard let melody = selectedMelody else { return nil }
+        return GiftPackage(melody: melody, title: resolvedTitle, message: message)
     }
 
     public var body: some View {
@@ -39,6 +55,9 @@ public struct GiftView: View {
         .onAppear {
             if selectedMelodyId == nil { selectedMelodyId = store.melodies.first?.id }
         }
+        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.json]) { result in
+            handleImport(result)
+        }
     }
 
     private var explanation: some View {
@@ -46,7 +65,7 @@ public struct GiftView: View {
             Text("把旋律装进八音盒，送给一个人")
                 .font(Theme.plaqueFont(size: 15))
                 .foregroundStyle(Theme.cream)
-            Text("当前为本地礼物草稿：旋律与祝福会完整保存。生成分享链接、对方免安装在浏览器开盒播放，是后续阶段（Phase 4）的线上功能，尚未开通——这里不会生成假链接。")
+            Text("点「分享这份礼物」可经微信、隔空投送或信息把礼物文件发给对方；对方装有本 App 时，在礼物页点「导入礼物」打开即可聆听。免安装的网页链接仍在规划中。")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.creamDim)
                 .fixedSize(horizontal: false, vertical: true)
@@ -98,6 +117,75 @@ public struct GiftView: View {
                 Haptics.medium()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { justSaved = false }
             }
+
+            HStack(spacing: 10) {
+                if let gift = draftGift {
+                    ShareLink(item: gift,
+                              preview: SharePreview(gift.title, image: Image(systemName: "gift.fill"))) {
+                        shareLabel(systemImage: "square.and.arrow.up", title: "分享这份礼物")
+                    }
+                }
+                Button {
+                    showingImporter = true
+                } label: {
+                    shareLabel(systemImage: "square.and.arrow.down", title: "导入礼物")
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let note = importNote {
+                Text(note)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.brassBright)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// 与 MechanicalButton 同外观的标签（ShareLink 需要自定义标签视图）。
+    private func shareLabel(systemImage: String, title: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .semibold))
+            Text(title)
+                .font(.system(size: 10))
+        }
+        .foregroundStyle(Theme.cream)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Theme.walnutInnerGradient)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.brass.opacity(0.45), lineWidth: 1)
+        )
+    }
+
+    /// 导入对方分享来的礼物文件：礼物存入草稿，旋律快照存入旋律库。
+    private func handleImport(_ result: Result<URL, Error>) {
+        do {
+            let url = try result.get()
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let data = try Data(contentsOf: url)
+            let gift = try GiftPackage.decode(data: data)
+            giftStore.add(gift)
+            let snapshot = gift.melodySnapshot
+            if let existing = store.melody(id: snapshot.id) {
+                if existing != snapshot {
+                    var copy = snapshot
+                    copy.id = UUID()
+                    store.save(copy)
+                }
+            } else {
+                store.save(snapshot)
+            }
+            importNote = "已导入礼物《\(gift.title)》——旋律《\(gift.melodyName)》已存入旋律库，去欣赏页即可聆听。"
+            Haptics.medium()
+        } catch {
+            importNote = "导入失败：所选文件不是有效的礼物文件。"
         }
     }
 
@@ -130,6 +218,12 @@ public struct GiftView: View {
                             }
                         }
                         Spacer()
+                        ShareLink(item: gift,
+                                  preview: SharePreview(gift.title, image: Image(systemName: "gift.fill"))) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.brassBright)
+                        }
                         Button {
                             giftStore.delete(id: gift.id)
                             Haptics.tick()
