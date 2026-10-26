@@ -28,17 +28,11 @@ public struct WindingControl: View {
     }
 
     public var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 6) {
             GeometryReader { geo in
                 let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
                 ZStack {
-                    Circle()
-                        .fill(Theme.brassGradient)
-                        .frame(width: 74, height: 74)
-                        .shadow(color: .black.opacity(0.45), radius: 3, y: 2)
-                    Circle()
-                        .stroke(Theme.brassDark.opacity(0.7), lineWidth: 1.5)
-                        .frame(width: 74, height: 74)
+                    barrelArt
                     keyBow
                         .rotationEffect(.degrees(keyAngle))
                 }
@@ -50,44 +44,116 @@ public struct WindingControl: View {
                         .onEnded { _ in lastDragAngle = nil }
                 )
             }
-            .frame(width: 92, height: 92)
+            .frame(width: 104, height: 104)
 
-            // 储能表：黄铜填充条 + 百分比
-            VStack(spacing: 2) {
+            // 储能表：加长黄铜填充条（96 → 216）+ 百分比，读数一眼到位。
+            VStack(spacing: 3) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: 3.5)
                             .fill(Color.black.opacity(0.45))
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: 3.5)
                             .fill(Theme.brassGradient)
                             .frame(width: geo.size.width * CGFloat(playback.springCharge))
+                        RoundedRectangle(cornerRadius: 3.5)
+                            .fill(Color.white.opacity(0.22))
+                            .frame(height: 2)
+                            .padding(.horizontal, 2)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                            .padding(.top, 1)
                     }
                 }
-                .frame(height: 6)
+                .frame(height: 7)
                 Text("发条 \(Int((playback.springCharge * 100).rounded()))% · 拖动钥匙上链")
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundStyle(Theme.creamDim)
             }
-            .frame(width: 96)
+            .frame(width: 216)
         }
     }
 
-    /// 蝶形钥匙：中轴 + 双环握柄（八音盒的标志造型）。
+    /// 发条筒（静态底座）：外圈棘轮齿 + 拉丝筒面 + 螺旋发条纹 + 中心轴座。
+    /// 旧版只是一块平面渐变圆，被用户评为"不够逼真"；这一版按真实发条盒的
+    /// 俯视结构逐层画：齿（上链棘爪滑过的那圈）、面（径向高光）、卷（螺旋槽
+    /// 双描成浮雕）、轴（中心方孔座）。
+    private var barrelArt: some View {
+        ZStack {
+            // 棘轮齿环：28 颗齿从筒缘探出。
+            ForEach(0..<28, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Theme.brassDark)
+                    .frame(width: 5, height: 11)
+                    .offset(y: -45)
+                    .rotationEffect(.degrees(Double(i) * 360 / 28))
+            }
+            // 筒面：径向渐变（左上亮、右下沉）模拟棚光下的金属圆面。
+            Circle()
+                .fill(RadialGradient(
+                    colors: [Theme.brassBright, Theme.brass, Theme.brassDark],
+                    center: UnitPoint(x: 0.35, y: 0.3),
+                    startRadius: 4, endRadius: 62))
+                .frame(width: 88, height: 88)
+                .shadow(color: .black.opacity(0.5), radius: 4, y: 3)
+            Circle()
+                .stroke(Theme.brassDark.opacity(0.8), lineWidth: 1.5)
+                .frame(width: 88, height: 88)
+            // 筒盖内圈凹线。
+            Circle()
+                .stroke(Color.black.opacity(0.25), lineWidth: 5)
+                .frame(width: 72, height: 72)
+            // 螺旋发条：暗槽 + 错位亮边 = 刻进金属的浮雕感。
+            ZStack {
+                SpiralShape(turns: 4.5)
+                    .stroke(Color.white.opacity(0.30), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                    .offset(x: 0.8, y: 0.8)
+                SpiralShape(turns: 4.5)
+                    .stroke(Theme.brassDark, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            }
+            .frame(width: 66, height: 66)
+            // 中心轴座（钥匙hub 压在其上）。
+            Circle()
+                .fill(RadialGradient(
+                    colors: [Theme.brassBright, Theme.brassDark],
+                    center: UnitPoint(x: 0.4, y: 0.35),
+                    startRadius: 1, endRadius: 10))
+                .frame(width: 17, height: 17)
+        }
+    }
+
+    /// 蝶形钥匙：中轴 + 双环握柄（八音盒的标志造型），金属渐变 + 落影，
+    /// 不再是旧版的平面深色剪影。
     private var keyBow: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 3)
-                .fill(Theme.brassDark)
-                .frame(width: 7, height: 34)
-                .offset(y: -14)
+                .fill(LinearGradient(colors: [Theme.brassBright, Theme.brass, Theme.brassDark],
+                                     startPoint: .leading, endPoint: .trailing))
+                .frame(width: 8, height: 36)
+                .offset(y: -13)
             HStack(spacing: -5) {
-                Circle().stroke(Theme.brassDark, lineWidth: 5).frame(width: 21, height: 21)
-                Circle().stroke(Theme.brassDark, lineWidth: 5).frame(width: 21, height: 21)
+                keyRing
+                keyRing
             }
-            .offset(y: -38)
+            .offset(y: -36)
             Circle()
-                .fill(Theme.brassDark)
-                .frame(width: 13, height: 13)
+                .fill(RadialGradient(
+                    colors: [Theme.brassBright, Theme.brass, Theme.brassDark],
+                    center: UnitPoint(x: 0.38, y: 0.32),
+                    startRadius: 1, endRadius: 9))
+                .frame(width: 15, height: 15)
+            // 轴心方孔（上链钥匙的身份标记）。
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.black.opacity(0.55))
+                .frame(width: 6, height: 6)
         }
+        .shadow(color: .black.opacity(0.35), radius: 2, y: 2)
+    }
+
+    private var keyRing: some View {
+        Circle()
+            .stroke(LinearGradient(colors: [Theme.brassBright, Theme.brassDark],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 6)
+            .frame(width: 22, height: 22)
     }
 
     private func rotate(to point: CGPoint, center: CGPoint) {
@@ -115,5 +181,27 @@ public struct WindingControl: View {
                 ratchetAccumulator = 0
             }
         }
+    }
+}
+
+/// 阿基米德螺旋（发条卷的俯视纹）：从内向外等距盘绕 turns 圈。
+private struct SpiralShape: Shape {
+    var turns: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let maxR = min(rect.width, rect.height) / 2 - 1
+        let minR = maxR * 0.14
+        let steps = 240
+        for i in 0...steps {
+            let t = Double(i) / Double(steps)
+            let angle = t * turns * 2 * Double.pi
+            let r = minR + (maxR - minR) * t
+            let p = CGPoint(x: center.x + CGFloat(cos(angle) * r),
+                            y: center.y + CGFloat(sin(angle) * r))
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        return path
     }
 }
