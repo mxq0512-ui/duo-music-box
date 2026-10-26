@@ -11,16 +11,21 @@ public struct ComposeView: View {
     @ObservedObject public var playback: PlaybackEngine
     @ObservedObject public var store: MelodyStore
     @Binding public var draft: Melody
+    /// 参考谱例（欣赏页谱例条设定，或在本页谱例行点选）：其音钉在表格中以
+    /// 虚线圈呈现，照着装钉即可复刻整首——"照着钉"的教学闭环。
+    @Binding public var reference: Melody?
 
     @State private var selectedPitch: Int?
     @State private var selectedStep: Int?
     @State private var showSaveAlert = false
     @State private var saveName = ""
 
-    public init(playback: PlaybackEngine, store: MelodyStore, draft: Binding<Melody>) {
+    public init(playback: PlaybackEngine, store: MelodyStore, draft: Binding<Melody>,
+                reference: Binding<Melody?>) {
         self.playback = playback
         self.store = store
         self._draft = draft
+        self._reference = reference
     }
 
     private var triggered: Set<Int> {
@@ -30,6 +35,7 @@ public struct ComposeView: View {
 
     public var body: some View {
         VStack(spacing: 10) {
+            referenceChips
             guidancePanel
             // 可编辑滚筒：Phase 2 起与欣赏模式共用同一块 3D 场景，
             // 点按增删的回调、草稿数据与发声反馈与 Phase 1 完全一致（仍走 toggle）。
@@ -55,6 +61,50 @@ public struct ComposeView: View {
     /// 已装钉格子的键集合（pitch × 10000 + step），供单元格 O(1) 查询。
     private var noteKeySet: Set<Int> {
         Set(draft.events.map { $0.pitchIndex * 10000 + $0.step })
+    }
+
+    /// 参考谱例的钉位键集合（虚线圈渲染用）。
+    private var referenceKeySet: Set<Int> {
+        guard let reference else { return [] }
+        return Set(reference.events.map { $0.pitchIndex * 10000 + $0.step })
+    }
+
+    /// 参考谱例中尚未照着装上的音钉数。
+    private var referenceRemaining: Int {
+        guard let reference else { return 0 }
+        return reference.events.filter { !draft.hasNote(pitchIndex: $0.pitchIndex, step: $0.step) }.count
+    }
+
+    /// 谱例选择行：无 / 七首谱例（与欣赏页同一份名单）。选中后表格出现虚线圈钉位。
+    private var referenceChips: some View {
+        HStack(spacing: 6) {
+            Text("参考谱例")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.creamDim)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    chip(title: "无", isActive: reference == nil) { reference = nil }
+                    ForEach(Melody.scoreExamples) { example in
+                        chip(title: example.name, isActive: reference?.id == example.id) {
+                            reference = example
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func chip(title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: isActive ? .bold : .regular))
+                .foregroundStyle(isActive ? Theme.ink : Theme.cream)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(isActive ? Theme.brass : Color.black.opacity(0.3)))
+                .overlay(Capsule().stroke(Theme.brass.opacity(isActive ? 0.9 : 0.4), lineWidth: 0.7))
+        }
+        .buttonStyle(.plain)
     }
 
     private var guidancePanel: some View {
@@ -128,7 +178,9 @@ public struct ComposeView: View {
     }
 
     private func gridCell(pitch: Int, step: Int) -> some View {
-        let has = noteKeySet.contains(pitch * 10000 + step)
+        let key = pitch * 10000 + step
+        let has = noteKeySet.contains(key)
+        let isGhost = !has && referenceKeySet.contains(key)
         let isSelected = selectedPitch == pitch && selectedStep == step
         return ZStack {
             Rectangle()
@@ -137,6 +189,12 @@ public struct ComposeView: View {
                 Circle()
                     .fill(Theme.brassBright)
                     .frame(width: 7, height: 7)
+            }
+            if isGhost {
+                // 参考谱例钉位：空心圈，照着把钉装进圈里即对位。
+                Circle()
+                    .strokeBorder(Theme.brassBright.opacity(0.8), lineWidth: 1.1)
+                    .frame(width: 9, height: 9)
             }
             Rectangle()
                 .strokeBorder(isSelected ? Theme.brassBright : Theme.cream.opacity(0.10),
@@ -216,11 +274,19 @@ public struct ComposeView: View {
     }
 
     private var selectionText: String {
+        var parts: [String] = []
+        if let reference {
+            parts.append(referenceRemaining == 0
+                ? "参考《\(reference.name)》：全部钉对了 ✓"
+                : "参考《\(reference.name)》：照着空心圈装钉，还差 \(referenceRemaining) 颗")
+        }
         if let p = selectedPitch, let s = selectedStep, let pitch = Pitch.at(index: p) {
             let has = draft.hasNote(pitchIndex: p, step: s)
-            return "已选 \(pitch.noteName)（\(pitch.solfege)）· 第 \(s + 1) 步 · \(has ? "有音钉，再点一次拆除" : "空，再点一次装上")"
+            parts.append("已选 \(pitch.noteName)（\(pitch.solfege)）· 第 \(s + 1) 步 · \(has ? "有音钉，再点一次拆除" : "空，再点一次装上")")
+        } else if reference == nil {
+            parts.append("点上方表格装上或拆除音钉（滚筒可拖动滚动，也可点按）· 共 \(draft.events.count) 颗 · \(draft.stepCount) 步")
         }
-        return "点上方表格装上或拆除音钉（滚筒可拖动滚动，也可点按）· 共 \(draft.events.count) 颗 · \(draft.stepCount) 步"
+        return parts.joined(separator: " · ")
     }
 
     /// 只有播放器当前装载的正是这份草稿时，才把编辑实时同步过去；

@@ -15,6 +15,8 @@ public struct MusicBoxView: View {
     @State private var mode: Mode = .listen
     @State private var currentMelody: Melody = Melody.twinkleTwinkle
     @State private var draft: Melody = Melody.makeBlank(name: "我的旋律")
+    /// 编曲页的参考谱例（欣赏页点选谱例时同步设定，编曲表格里以虚线圈呈现其钉位）。
+    @State private var referenceMelody: Melody?
     /// 上发条钥匙的累计转角（WindingControl 回调写入，3D 场景读取呈现，两边同一手势来源）。
     @State private var windingKeyAngle: Double = 0
 
@@ -139,7 +141,7 @@ public struct MusicBoxView: View {
         case .listen:
             listenContent
         case .compose:
-            ComposeView(playback: playback, store: store, draft: $draft)
+            ComposeView(playback: playback, store: store, draft: $draft, reference: $referenceMelody)
         case .library:
             LibraryView(store: store, currentMelody: $currentMelody) { loaded in
                 currentMelody = loaded
@@ -169,7 +171,9 @@ public struct MusicBoxView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(6)
             }
-            .frame(height: 252)
+            .frame(height: 228)
+
+            scoreExamples
 
             // 发条钥匙实体控件（上链手势的唯一入口）：居中呈现，
             // 其转角经回调同步给上方 3D 场景中的钥匙与发条量表。
@@ -178,6 +182,54 @@ public struct MusicBoxView: View {
             }
 
             transportControls
+        }
+    }
+
+    /// 谱例条（Phase 4）：几首耳熟名曲的音钉图例——横轴是步、纵轴是音高，
+    /// 点开哪颗钉在哪一目了然；点按试听，同时设为编曲页的参考谱，
+    /// 去「编曲」照着虚线圈把钉装上即可复刻。
+    private var scoreExamples: some View {
+        HStack(spacing: 8) {
+            VStack(spacing: 2) {
+                Text("谱例")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.brassBright)
+                Text("照着钉")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.creamDim)
+            }
+            .frame(width: 30)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Melody.scoreExamples) { example in
+                        Button {
+                            currentMelody = example
+                            referenceMelody = example
+                            playback.setMelody(example)
+                            playback.play()
+                            Haptics.light()
+                        } label: {
+                            VStack(spacing: 3) {
+                                PinDiagram(melody: example)
+                                    .frame(width: 54, height: 26)
+                                Text(example.name)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(referenceMelody?.id == example.id ? Theme.brassBright : Theme.cream)
+                                    .lineLimit(1)
+                            }
+                            .padding(.vertical, 5)
+                            .padding(.horizontal, 4)
+                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.25)))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(referenceMelody?.id == example.id ? Theme.brassBright : Theme.brass.opacity(0.35),
+                                            lineWidth: referenceMelody?.id == example.id ? 1.2 : 0.7)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
     }
 
@@ -241,5 +293,43 @@ public struct MusicBoxView: View {
         withAnimation(.spring(response: 0.7, dampingFraction: 0.85)) { isOpen = false }
         playback.audio.playLidSound()
         Haptics.medium()
+    }
+}
+
+/// 音钉图例：把一首旋律的全部音钉画成微缩图（横轴 = 步，纵轴 = 音高，
+/// 最高音在上），供谱例卡"以图识谱、照着钉"。
+public struct PinDiagram: View {
+    public var melody: Melody
+
+    public init(melody: Melody) {
+        self.melody = melody
+    }
+
+    public var body: some View {
+        Canvas { context, size in
+            let steps = max(1, melody.stepCount)
+            let cellW = size.width / CGFloat(steps)
+            let cellH = size.height / CGFloat(Melody.pitchCount)
+            var grid = Path()
+            for s in stride(from: 0, through: steps, by: 8) {
+                let x = CGFloat(s) * cellW
+                grid.move(to: CGPoint(x: x, y: 0))
+                grid.addLine(to: CGPoint(x: x, y: size.height))
+            }
+            for p in 0...Melody.pitchCount {
+                let y = CGFloat(p) * cellH
+                grid.move(to: CGPoint(x: 0, y: y))
+                grid.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            context.stroke(grid, with: .color(.white.opacity(0.10)), lineWidth: 0.5)
+            for event in melody.events {
+                let x = CGFloat(event.step) * cellW
+                let y = CGFloat(Melody.pitchCount - 1 - event.pitchIndex) * cellH
+                let rect = CGRect(x: x, y: y + cellH * 0.2,
+                                  width: max(1.4, cellW * 0.8), height: max(1.4, cellH * 0.6))
+                context.fill(Path(roundedRect: rect, cornerRadius: 0.7),
+                             with: .color(Theme.brassBright))
+            }
+        }
     }
 }

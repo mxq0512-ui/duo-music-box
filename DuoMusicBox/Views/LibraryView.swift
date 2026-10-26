@@ -32,31 +32,39 @@ public struct LibraryView: View {
                     .padding(24)
             } else {
                 List {
-                    ForEach(store.melodies) { melody in
-                        Button {
-                            onLoad(melody)
-                            Haptics.light()
-                        } label: {
-                            row(for: melody)
-                        }
-                        .buttonStyle(.plain)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparatorTint(Theme.brass.opacity(0.25))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                deleteID = melody.id
-                                activeAlert = .delete
-                            } label: {
-                                Label("删除", systemImage: "trash")
+                    ForEach(sections) { section in
+                        Section {
+                            ForEach(section.items) { melody in
+                                Button {
+                                    onLoad(melody)
+                                    Haptics.light()
+                                } label: {
+                                    row(for: melody)
+                                }
+                                .buttonStyle(.plain)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparatorTint(Theme.brass.opacity(0.25))
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        deleteID = melody.id
+                                        activeAlert = .delete
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                    Button {
+                                        renameID = melody.id
+                                        renameText = melody.name
+                                        activeAlert = .rename
+                                    } label: {
+                                        Label("重命名", systemImage: "pencil")
+                                    }
+                                    .tint(Theme.brassDark)
+                                }
                             }
-                            Button {
-                                renameID = melody.id
-                                renameText = melody.name
-                                activeAlert = .rename
-                            } label: {
-                                Label("重命名", systemImage: "pencil")
-                            }
-                            .tint(Theme.brassDark)
+                        } header: {
+                            Text("\(section.title) · \(section.items.count)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Theme.brassBright)
                         }
                     }
                 }
@@ -95,6 +103,37 @@ public struct LibraryView: View {
 
     private var alertTitle: String {
         activeAlert == .rename ? "重命名旋律" : "删除这首旋律？"
+    }
+
+    // MARK: - 分组（Phase 4：旋律库扩容到 100+ 首后按类分组）
+
+    private struct LibrarySection: Identifiable {
+        let title: String
+        let items: [Melody]
+        var id: String { title }
+    }
+
+    /// 分组顺序：经典预置 → 五大目录分类 → 我的旋律（用户自编/导入）。
+    /// 分类信息不写入 Melody 本体（保持旧数据解码兼容），按目录 ID 现查。
+    private var sections: [LibrarySection] {
+        let classicIDs: Set<UUID> = [Melody.twinkleTwinkle.id, Melody.odeToJoy.id, Melody.blankTemplate.id]
+        let order = ["经典预置"] + Melody.Category.allCases.map(\.rawValue) + ["我的旋律"]
+        var buckets: [String: [Melody]] = [:]
+        for melody in store.melodies {
+            let key: String
+            if classicIDs.contains(melody.id) {
+                key = "经典预置"
+            } else if let category = Melody.catalogCategory(id: melody.id) {
+                key = category.rawValue
+            } else {
+                key = "我的旋律"
+            }
+            buckets[key, default: []].append(melody)
+        }
+        return order.compactMap { title in
+            guard let items = buckets[title], !items.isEmpty else { return nil }
+            return LibrarySection(title: title, items: items)
+        }
     }
 
     private func row(for melody: Melody) -> some View {
