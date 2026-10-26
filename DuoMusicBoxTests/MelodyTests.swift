@@ -1,4 +1,5 @@
 import XCTest
+import UniformTypeIdentifiers
 @testable import DuoMusicBox
 
 final class MelodyTests: XCTestCase {
@@ -287,5 +288,15 @@ final class GiftPackageTests: XCTestCase {
                                createdAt: Date(timeIntervalSince1970: 1_700_000_000))
         let decoded = try GiftPackage.decode(data: gift.exportData())
         XCTAssertEqual(gift, decoded)
+    }
+
+    /// Phase 4.1 分享修复：分享出去的必须是有正式文件名的 .duogift 专有类型文件
+    /// （旧版无名内存数据在分享面板里标题是一串系统类名，且微信等文件入口不出现）。
+    func testShareFileNameAndGiftType() {
+        let gift = GiftPackage(melody: Melody.libraryCatalog[2], title: "t", message: "m")
+        XCTAssertTrue(gift.shareFileName.hasSuffix(".duogift"))
+        XCTAssertTrue(gift.shareFileName.contains(gift.melodyName), "文件名带旋律名便于辨认")
+        XCTAssertEqual(UTType.duoGift.identifier, "com.jacky.duomusicbox.gift")
+        XCTAssertTrue(UTType.duoGift.isSubtype(of: .json), "内容仍是 JSON，类型向其收敛")
     }
 }

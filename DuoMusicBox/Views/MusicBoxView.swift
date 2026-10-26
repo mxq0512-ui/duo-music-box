@@ -66,20 +66,41 @@ public struct MusicBoxView: View {
                 lidHeader
                 if isOpen {
                     content
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     modeBar
                 } else {
                     closedFront
+                        .frame(maxHeight: .infinity)
                         .transition(.opacity)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
+            // 铺满整屏：内容区顶对齐并吃满安全区内的全部高度，富余空间由
+            // 各模式的弹性区（欣赏/编曲的 3D 场景卡）吸收，不再上下留大片空白。
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .onAppear {
             playback.setMelody(currentMelody)
             playback.audio.startIfNeeded()
         }
+        .onOpenURL { url in
+            handleIncomingGiftFile(url)
+        }
+    }
+
+    /// 从微信/文件点开礼物文件（.duogift）时由系统递进来：解码后暂存投递箱，
+    /// 开盒并切到礼物页，由 GiftView 完成导入（GiftStore 在它手里）。
+    private func handleIncomingGiftFile(_ url: URL) {
+        guard url.isFileURL else { return }
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url),
+              let gift = try? GiftPackage.decode(data: data) else { return }
+        GiftInbox.shared.pending = gift
+        isOpen = true
+        mode = .gift
     }
 
     // MARK: - 盒盖区（上半区，永不移位）
@@ -171,7 +192,9 @@ public struct MusicBoxView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(6)
             }
-            .frame(height: 228)
+            // 弹性高度：保底 252，屏幕有富余时继续长高把机芯撑满卡片（用户反馈
+            // "机芯太小、上下留空太多"的正解——卡片本身随屏幕长大）。
+            .frame(minHeight: 252, maxHeight: .infinity)
 
             scoreExamples
 
@@ -259,7 +282,7 @@ public struct MusicBoxView: View {
                 Text("速度 \(Int(playback.tempoBPM))")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.cream)
-                Slider(value: $playback.tempoBPM, in: 60...160, step: 1)
+                Slider(value: $playback.tempoBPM, in: PlaybackEngine.tempoRange, step: 1)
                     .tint(Theme.brass)
             }
             .frame(maxWidth: .infinity)
