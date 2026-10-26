@@ -484,8 +484,8 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
         }
 
         // 梳齿指向：齿根（1.27, 0.98）→ 齿尖目标为鼓面 38° 处，二者之差决定齿的俯角。
-        let tipY = Double(drumY) + (MechanismMath.drumRadius + 0.03) * sin(38.0 * Double.pi / 180)
-        let tipZ = (MechanismMath.drumRadius + 0.03) * cos(38.0 * Double.pi / 180)
+        let tipY = Double(drumY) + (MechanismMath.drumRadius + 0.03) * sin(MechanismMath.combContactAngleDegrees * Double.pi / 180)
+        let tipZ = (MechanismMath.drumRadius + 0.03) * cos(MechanismMath.combContactAngleDegrees * Double.pi / 180)
         let gamma = atan2(tipY - 1.27, -(tipZ - 0.98)) // 绕 X 的俯角，推导见 MechanismMath 注释
         let colW = MechanismMath.drumLength / Double(Melody.pitchCount)
         for p in 0..<Melody.pitchCount {
@@ -755,7 +755,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             if abs(manualDrumOffsetDegrees) < 0.05 { manualDrumOffsetDegrees = 0 }
         }
         let effectiveRotation = rotationDegrees + manualDrumOffsetDegrees
-        drumGroup.eulerAngles.x = Float(MechanismMath.drumRotationRadians(rotationDegrees: effectiveRotation))
+        drumGroup.eulerAngles.x = Float(MechanismMath.drumEulerX(rotationDegrees: effectiveRotation))
         bigGearGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
             clockwiseDegrees: MechanismMath.bigGearDegrees(cylinderRotation: rotationDegrees)))
         smallGearGroup.eulerAngles.z = Float(MechanismMath.sceneRotationZ(
@@ -1006,7 +1006,7 @@ final class MechanismSceneCoordinator: NSObject, SCNSceneRendererDelegate {
             if dragMoved {
                 manualDrumOffsetDegrees = dragStartOffset + Double(translation.y) * 0.5
                 // 直接落到鼓体不等下一次 update：拖动跟手优先；下一次 update 会以同值重写。
-                drumGroup.eulerAngles.x = Float(MechanismMath.drumRotationRadians(
+                drumGroup.eulerAngles.x = Float(MechanismMath.drumEulerX(
                     rotationDegrees: lastPlaybackRotation + manualDrumOffsetDegrees))
             }
         case .ended, .cancelled:

@@ -35,6 +35,23 @@ public enum MechanismMath {
         return (x, radius * sin(a), radius * cos(a))
     }
 
+    /// 音梳齿尖接触角（度）：齿尖落在鼓面此角度处（角度约定与 pinAngleRadians
+    /// 相同：+Z 正对观者为 0、向 +Y 为正）。发声与此角严格绑定：音钉的世界角度
+    /// 到达此角的一刻，正是音频在该步发声的一刻。场景里两个地方用到它——
+    /// 梳齿指向瞄准此角、鼓体欧拉角叠加 -此角 的安装偏移（见 drumEulerX）——
+    /// 必须同源于此常数。2026-10-26 真机实测不同步的根源正是：齿尖在 38°
+    /// 而发声约定在 0°，两者各自写死、无人绑定，差 38° ≈ 64 步制下 6.8 步。
+    public static let combContactAngleDegrees = 38.0
+
+    /// 鼓体在场景中的 X 轴欧拉角（弧度）= 播放旋转 − 接触角偏移。
+    /// 世界角度 = 本地角度 − 欧拉角；无偏移时音钉在世界 0°（正前方）发声，
+    /// 减去接触角后，音钉的世界角度到达齿尖所在的 38° 时恰好发声。
+    /// update 与编辑拖动两处落角必须都走本函数，不许直接调 drumRotationRadians。
+    public static func drumEulerX(rotationDegrees: Double) -> Double {
+        drumRotationRadians(rotationDegrees: rotationDegrees)
+            - combContactAngleDegrees * Double.pi / 180
+    }
+
     /// 鼓体旋转角（弧度）：直接来自 PlaybackMath.rotationDegrees，不引入第二个时钟。
     /// 符号约定见 pinAngleRadians 的注释——鼓体绕 +X 转此角时，
     /// 即将触发的音钉从上向前下方滚动，抵达正前方时发声，与 Phase 1 画面运动方向一致。
