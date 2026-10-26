@@ -58,6 +58,25 @@ final class MechanismMathTests: XCTestCase {
             XCTAssertEqual(back?.pitch, pitch)
             XCTAssertEqual(back?.step, step)
         }
+        // Phase 3：64 步全格往返（表格与滚筒在最密步距下仍须格格对齐）
+        for step in 0..<64 {
+            for pitch in [0, 3, 7] {
+                let pos = MechanismMath.pinLocalPosition(pitchIndex: pitch, step: step, stepCount: 64)
+                let back = MechanismMath.pitchAndStep(localX: pos.x, localY: pos.y, localZ: pos.z, stepCount: 64)
+                XCTAssertEqual(back?.pitch, pitch, "64 步 pitch \(pitch) step \(step) 反解 pitch 不符")
+                XCTAssertEqual(back?.step, step, "64 步 pitch \(pitch) step \(step) 反解 step 不符")
+            }
+        }
+    }
+
+    // MARK: - 刻度环密度（Phase 3）
+
+    func testStepRingStride() {
+        XCTAssertEqual(MechanismMath.stepRingStride(stepCount: 8), 1)
+        XCTAssertEqual(MechanismMath.stepRingStride(stepCount: 16), 1)
+        XCTAssertEqual(MechanismMath.stepRingStride(stepCount: 32), 2)
+        XCTAssertEqual(MechanismMath.stepRingStride(stepCount: 64), 4)
+        XCTAssertEqual(MechanismMath.stepRingStride(stepCount: 0), 1, "零步数也不得返回 0（stride by 0 会崩溃）")
     }
 
     func testPitchAndStepEdgeCases() {
