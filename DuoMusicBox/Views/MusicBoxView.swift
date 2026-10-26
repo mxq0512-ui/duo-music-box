@@ -75,32 +75,14 @@ public struct MusicBoxView: View {
                         .transition(.opacity)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            // 铺满整屏：内容区顶对齐并吃满安全区内的全部高度，富余空间由
-            // 各模式的弹性区（欣赏/编曲的 3D 场景卡）吸收，不再上下留大片空白。
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .onAppear {
             playback.setMelody(currentMelody)
             playback.audio.startIfNeeded()
         }
-        .onOpenURL { url in
-            handleIncomingGiftFile(url)
-        }
-    }
-
-    /// 从微信/文件点开礼物文件（.duogift）时由系统递进来：解码后暂存投递箱，
-    /// 开盒并切到礼物页，由 GiftView 完成导入（GiftStore 在它手里）。
-    private func handleIncomingGiftFile(_ url: URL) {
-        guard url.isFileURL else { return }
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url),
-              let gift = try? GiftPackage.decode(data: data) else { return }
-        GiftInbox.shared.pending = gift
-        isOpen = true
-        mode = .gift
     }
 
     // MARK: - 盒盖区（上半区，永不移位）
@@ -192,84 +174,18 @@ public struct MusicBoxView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(6)
             }
-            // 弹性高度：保底 252，屏幕有富余时继续长高把机芯撑满卡片（用户反馈
-            // "机芯太小、上下留空太多"的正解——卡片本身随屏幕长大）。
             .frame(minHeight: 252, maxHeight: .infinity)
 
             scoreExamples
 
-            controlDeck
-
-            chargeBar
-        }
-    }
-
-    /// 控制甲板（视觉大改，仿参考图布局）：圆形走带键环绕中央发条钥匙——
-    /// 左侧播放/重播、右侧停止与速度滑杆；钥匙是上链手势的唯一入口，
-    /// 其转角经回调同步给上方 3D 场景中的钥匙与发条量表。
-    private var controlDeck: some View {
-        HStack(alignment: .top, spacing: 8) {
-            RoundTransportButton(systemImage: playback.isPlaying ? "pause.fill" : "play.fill",
-                                 title: playback.isPlaying ? "暂停" : "播放",
-                                 isActive: playback.isPlaying) {
-                if playback.isPlaying {
-                    playback.pause()
-                } else {
-                    if playback.melody.id != currentMelody.id { playback.setMelody(currentMelody) }
-                    playback.play()
-                }
-                Haptics.light()
-            }
-            RoundTransportButton(systemImage: "arrow.counterclockwise", title: "重播") {
-                if playback.melody.id != currentMelody.id { playback.setMelody(currentMelody) }
-                playback.replay()
-                Haptics.light()
-            }
+            // 发条钥匙实体控件（上链手势的唯一入口）：居中呈现，
+            // 其转角经回调同步给上方 3D 场景中的钥匙与发条量表。
             WindingControl(playback: playback, audio: playback.audio) { angle in
                 windingKeyAngle = angle
             }
-            RoundTransportButton(systemImage: "stop.fill", title: "停止") {
-                playback.stop()
-                Haptics.tick()
-            }
-            VStack(spacing: 3) {
-                Text("速度 \(Int(playback.tempoBPM))")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Theme.cream)
-                Slider(value: $playback.tempoBPM, in: PlaybackEngine.tempoRange, step: 1)
-                    .tint(Theme.brass)
-            }
-            .frame(width: 84)
-            .padding(.top, 14)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-    }
 
-    /// 发条储能条：独立成行居中（宽 240），黄铜填充 + 顶部高光线 + 百分比。
-    private var chargeBar: some View {
-        VStack(spacing: 3) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3.5)
-                        .fill(Color.black.opacity(0.45))
-                    RoundedRectangle(cornerRadius: 3.5)
-                        .fill(Theme.brassGradient)
-                        .frame(width: geo.size.width * CGFloat(playback.springCharge))
-                    RoundedRectangle(cornerRadius: 3.5)
-                        .fill(Color.white.opacity(0.22))
-                        .frame(height: 2)
-                        .padding(.horizontal, 2)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 1)
-                }
-            }
-            .frame(height: 7)
-            Text("发条 \(Int((playback.springCharge * 100).rounded()))% · 拖动钥匙上链")
-                .font(.system(size: 10))
-                .foregroundStyle(Theme.creamDim)
+            transportControls
         }
-        .frame(width: 240)
-        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     /// 谱例条（Phase 4）：几首耳熟名曲的音钉图例——横轴是步、纵轴是音高，
@@ -312,10 +228,6 @@ public struct MusicBoxView: View {
                                     .stroke(referenceMelody?.id == example.id ? Theme.brassBright : Theme.brass.opacity(0.35),
                                             lineWidth: referenceMelody?.id == example.id ? 1.2 : 0.7)
                             )
-                            // 选中态金色辉光（仿参考图谱例卡的发光描边）。
-                            .shadow(color: referenceMelody?.id == example.id
-                                    ? Theme.brassBright.opacity(0.45) : .clear,
-                                    radius: 7)
                         }
                         .buttonStyle(.plain)
                     }
@@ -324,36 +236,48 @@ public struct MusicBoxView: View {
         }
     }
 
-    /// 底部标签栏（视觉大改）：顶部黄铜细线 + 等分四格 + 竖分隔线，
-    /// 选中态亮金、未选态暗奶油——学参考图底部的导航栏形态。
+    private var transportControls: some View {
+        HStack(spacing: 8) {
+            MechanicalButton(systemImage: playback.isPlaying ? "pause.fill" : "play.fill",
+                             title: playback.isPlaying ? "暂停" : "播放",
+                             isActive: playback.isPlaying) {
+                if playback.isPlaying {
+                    playback.pause()
+                } else {
+                    if playback.melody.id != currentMelody.id { playback.setMelody(currentMelody) }
+                    playback.play()
+                }
+                Haptics.light()
+            }
+            MechanicalButton(systemImage: "arrow.counterclockwise", title: "重播") {
+                if playback.melody.id != currentMelody.id { playback.setMelody(currentMelody) }
+                playback.replay()
+                Haptics.light()
+            }
+            MechanicalButton(systemImage: "stop.fill", title: "停止") {
+                playback.stop()
+                Haptics.tick()
+            }
+            VStack(spacing: 2) {
+                Text("速度 \(Int(playback.tempoBPM))")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.cream)
+                Slider(value: $playback.tempoBPM, in: PlaybackEngine.tempoRange, step: 1)
+                    .tint(Theme.brass)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.walnutInner.opacity(0.6)))
+        }
+    }
+
     private var modeBar: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(Theme.brass.opacity(0.35))
-                .frame(height: 1)
-            HStack(spacing: 0) {
-                ForEach(Array(Mode.allCases.enumerated()), id: \.element) { index, m in
-                    if index > 0 {
-                        Rectangle()
-                            .fill(Theme.brass.opacity(0.22))
-                            .frame(width: 1, height: 26)
-                    }
-                    Button {
-                        mode = m
-                        Haptics.tick()
-                    } label: {
-                        VStack(spacing: 3) {
-                            Image(systemName: m.icon)
-                                .font(.system(size: 19, weight: .semibold))
-                            Text(m.title)
-                                .font(.system(size: 10))
-                        }
-                        .foregroundStyle(mode == m ? Theme.brassBright : Theme.creamDim)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+        HStack(spacing: 8) {
+            ForEach(Mode.allCases, id: \.self) { m in
+                MechanicalButton(systemImage: m.icon, title: m.title, isActive: mode == m) {
+                    mode = m
+                    Haptics.tick()
                 }
             }
         }
@@ -410,38 +334,5 @@ public struct PinDiagram: View {
                              with: .color(Theme.brassBright))
             }
         }
-    }
-}
-
-/// 圆形走带键（视觉大改）：木底黄铜描边的圆钮 + 下方小标签，
-/// 播放中（激活态）换黄铜渐变底、深色图标——仿参考图两侧的圆形控制键。
-public struct RoundTransportButton: View {
-    public var systemImage: String
-    public var title: String
-    public var isActive: Bool = false
-    public var action: () -> Void
-
-    public var body: some View {
-        Button(action: action) {
-            VStack(spacing: 3) {
-                ZStack {
-                    Circle()
-                        .fill(isActive ? Theme.brassGradient : Theme.walnutInnerGradient)
-                        .frame(width: 52, height: 52)
-                    Circle()
-                        .stroke(Theme.brass.opacity(isActive ? 0.95 : 0.5), lineWidth: 1.2)
-                        .frame(width: 52, height: 52)
-                    Image(systemName: systemImage)
-                        .font(.system(size: 19, weight: .semibold))
-                        .foregroundStyle(isActive ? Theme.ink : Theme.cream)
-                }
-                .shadow(color: .black.opacity(0.4), radius: 3, y: 2)
-                Text(title)
-                    .font(.system(size: 9))
-                    .foregroundStyle(Theme.creamDim)
-            }
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 10)
     }
 }

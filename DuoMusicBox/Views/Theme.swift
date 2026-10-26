@@ -124,20 +124,11 @@ public struct BrassPlaque: View {
                 .fill(Theme.brassGradient)
                 .shadow(color: .black.opacity(0.45), radius: 3, y: 2)
             VStack(spacing: 1) {
-                // 标题两侧月桂枝角花（SF Symbols laurel），学参考图铭牌的雕刻纹饰。
-                HStack(spacing: 5) {
-                    Image(systemName: "laurel.leading")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.ink.opacity(0.55))
-                    Text(title)
-                        .font(Theme.plaqueFont(size: 17))
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                    Image(systemName: "laurel.trailing")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.ink.opacity(0.55))
-                }
+                Text(title)
+                    .font(Theme.plaqueFont(size: 17))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 if let subtitle {
                     Text(subtitle)
                         .font(Theme.bodyFont(size: 11))

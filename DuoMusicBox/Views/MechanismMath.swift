@@ -10,7 +10,7 @@ import Foundation
 public enum MechanismMath {
     /// 3D 场景中滚筒的半径与轴向长度（场景单位，与 MechanismSceneView 共用同一组尺寸）。
     public static let drumRadius = 1.0
-    public static let drumLength = 3.3
+    public static let drumLength = 3.8
 
     // MARK: - 音钉落位（正向）
 
