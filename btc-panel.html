@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:,">
+<title>BTC 挑战终端面板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#04060f; --panel:#070b1a; --panel2:#0a0f22; --line:#1b2547; --line2:#2a3866;
+  --text:#eaf2ff; --muted:#8b9cc9; --dim:#5a6a94;
+  --cyan:#00e5ff; --purple:#a06bff; --orange:#ff9a1f; --green:#00ffa3; --red:#ff3860; --pink:#ff5ec4;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"Noto Sans SC",system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--text);font-family:var(--sans);margin:0}
+body{background-image:radial-gradient(900px 500px at 15% -5%,rgba(0,229,255,.09),transparent 60%),radial-gradient(800px 500px at 90% 0%,rgba(160,107,255,.10),transparent 60%),linear-gradient(rgba(0,229,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.03) 1px,transparent 1px);background-size:auto,auto,26px 26px,26px 26px}
+a{color:var(--cyan)}
+.wrap{max-width:1240px;margin:0 auto;padding:14px 14px 42px;position:relative}
+/* ---------- top bar ---------- */
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border:1px solid var(--line2);background:linear-gradient(90deg,rgba(0,229,255,.07),rgba(160,107,255,.07) 55%,rgba(255,154,31,.05));padding:11px 13px;box-shadow:0 0 24px rgba(0,229,255,.08),inset 0 0 30px rgba(0,0,0,.5)}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.dot{width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green),0 0 0 5px rgba(0,255,163,.12);flex-shrink:0}
+.dot.off{background:var(--red);box-shadow:0 0 12px var(--red),0 0 0 5px rgba(255,56,96,.12)}
+.brand h1{font-size:18px;margin:0;font-weight:900;letter-spacing:.05em;text-shadow:0 0 18px rgba(0,229,255,.45)}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:11px;font-family:var(--mono);letter-spacing:.08em}
+.topmeta{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.04em;border:1px solid var(--line2);padding:6px 8px;color:var(--muted);background:rgba(4,6,15,.75)}
+.pill b{color:var(--text);font-weight:600}
+.pill.live{color:#02120a;background:var(--green);border-color:var(--green);font-weight:800;box-shadow:0 0 14px rgba(0,255,163,.5)}
+.pill.live.off{background:var(--red);border-color:var(--red);color:#fff;box-shadow:0 0 14px rgba(255,56,96,.5)}
+.pill.live.poll{color:#1a0e00;background:var(--orange);border-color:var(--orange);box-shadow:0 0 14px rgba(255,154,31,.55)}
+.dot.poll{background:var(--orange);box-shadow:0 0 12px var(--orange),0 0 0 5px rgba(255,154,31,.14)}
+.disclaimer{margin-top:10px;border:1px solid #57400f;background:#171106;color:#f3d48a;padding:10px 13px;font-size:12.5px;line-height:1.6}
+.error{display:none;margin-top:10px;border:1px solid #5a1d2e;background:#1a0810;color:#ffb3c2;padding:12px 13px;line-height:1.6;font-size:13.5px}
+.error.show{display:block}
+.retryBtn{background:var(--cyan);color:#02131a;border:0;font-weight:800;padding:9px 14px;cursor:pointer;font-family:var(--sans)}
+/* ---------- layout ---------- */
+.hero{margin-top:10px;display:grid;grid-template-columns:1.6fr .9fr;gap:10px}
+.panel{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel2),var(--panel));padding:14px;position:relative;overflow:hidden}
+.panel::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,229,255,.55),rgba(160,107,255,.55),transparent);pointer-events:none}
+.panel h2{font-size:11px;letter-spacing:.15em;color:var(--muted);margin:0 0 11px;font-family:var(--mono);font-weight:600;text-transform:uppercase;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.panel h2 .r{color:var(--dim);letter-spacing:.03em;text-transform:none}
+@keyframes tickGlow{0%{box-shadow:0 0 0 rgba(0,255,163,0)}25%{box-shadow:0 0 26px rgba(0,255,163,.28)}100%{box-shadow:0 0 0 rgba(0,255,163,0)}}
+@keyframes tickGlowDown{0%{box-shadow:0 0 0 rgba(255,56,96,0)}25%{box-shadow:0 0 26px rgba(255,56,96,.30)}100%{box-shadow:0 0 0 rgba(255,56,96,0)}}
+.panel.pulseUp{animation:tickGlow .7s ease-out}
+.panel.pulseDown{animation:tickGlowDown .7s ease-out}
+@media(prefers-reduced-motion:reduce){.panel.pulseUp,.panel.pulseDown{animation:none}}
+/* price */
+.priceRow{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;justify-content:space-between}
+.price{font-family:var(--mono);font-weight:800;font-size:clamp(40px,6.5vw,62px);line-height:.95;letter-spacing:-.03em;transition:color .15s}
+.price small{font-size:17px;color:var(--muted);font-weight:600}
+.price.up{color:var(--green);text-shadow:0 0 22px rgba(0,255,163,.5)}
+.price.down{color:var(--red);text-shadow:0 0 22px rgba(255,56,96,.5)}
+.change{font-family:var(--mono);font-size:14px;padding:7px 9px;border:1px solid var(--line2)}
+.up{color:var(--green)}.down{color:var(--red)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:13px}
+.stat{border:1px solid var(--line);padding:8px 9px;background:rgba(0,0,0,.3)}
+.stat span{display:block;color:var(--dim);font-size:10px;font-family:var(--mono);letter-spacing:.07em}
+.stat b{display:block;margin-top:4px;font-family:var(--mono);font-size:13.5px;font-weight:600;word-break:break-all}
+canvas#chart{width:100%;height:190px;display:block;margin-top:12px;background:#04060f;border:1px solid var(--line)}
+canvas#tickSpark{width:100%;height:44px;display:block;margin-top:7px;background:#04060f;border:1px solid var(--line)}
+.klineMeta{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--dim);font-family:var(--mono);font-size:10.5px;margin-top:7px}
+/* signal + countdown */
+.signalBig{font-family:var(--mono);font-weight:800;font-size:clamp(38px,5.5vw,56px);line-height:1;margin:8px 0 6px;letter-spacing:.02em}
+.signalBig.wait{color:var(--orange);text-shadow:0 0 22px rgba(255,154,31,.45)}
+.signalBig.long{color:var(--green);text-shadow:0 0 22px rgba(0,255,163,.55)}
+.signalBig.short{color:var(--red);text-shadow:0 0 22px rgba(255,56,96,.55)}
+.signalLabel{font-family:var(--mono);color:var(--muted);font-size:11px;letter-spacing:.14em}
+.signalDesc{color:var(--muted);line-height:1.65;font-size:13.5px;margin:0}
+.cdNums{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;text-align:center;margin-top:12px}
+.cdNums div{border:1px solid var(--line2);padding:8px 3px;background:rgba(0,0,0,.35)}
+.cdNums b{display:block;font-family:var(--mono);font-size:21px;color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.5)}
+.cdNums span{font-size:10.5px;color:var(--dim)}
+.tfNote{margin-top:11px;border-top:1px dashed var(--line2);padding-top:10px;color:var(--muted);font-size:12px;line-height:1.65}
+/* gauges */
+.gauges{margin-top:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.gauge{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel2),var(--panel));padding:12px;text-align:center;position:relative;overflow:hidden}
+.gauge::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(160,107,255,.6),transparent)}
+.gauge svg{width:86px;height:86px;transform:rotate(-90deg)}
+.gauge .track{stroke:#16204a}
+.gauge .val{font-family:var(--mono);font-weight:800;font-size:16px;margin-top:-58px;height:38px}
+.gauge .cap{font-size:11px;color:var(--muted);margin-top:14px;font-family:var(--mono);letter-spacing:.06em;line-height:1.5}
+.gauge .sub{font-size:11px;color:var(--dim);font-family:var(--mono)}
+/* agent floor */
+.floorWrap{margin-top:10px;border:1px solid var(--line);background:linear-gradient(180deg,#080d20,#05070f);position:relative;overflow:hidden}
+.floorWrap>h2{font-size:11px;letter-spacing:.15em;color:var(--muted);margin:0;padding:12px 14px 0;font-family:var(--mono);font-weight:600;text-transform:uppercase;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;position:relative;z-index:2}
+#neural{position:absolute;inset:0;width:100%;height:100%;opacity:.85;pointer-events:none}
+.agents{position:relative;z-index:2;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 14px 14px}
+.agent{border:1px solid var(--line2);background:rgba(5,8,20,.88);padding:12px;min-height:158px;display:flex;flex-direction:column;transition:box-shadow .3s,border-color .3s}
+.agent.active{border-color:var(--cyan);box-shadow:0 0 18px rgba(0,229,255,.28),inset 0 0 24px rgba(0,229,255,.05)}
+.agent.pass{border-color:rgba(0,255,163,.6)} .agent.fail{border-color:rgba(255,56,96,.6)} .agent.warnst{border-color:rgba(255,154,31,.6)}
+.agentHead{display:flex;gap:10px;align-items:center}
+.avatar{width:40px;height:40px;flex-shrink:0;image-rendering:pixelated}
+.agent h3{margin:0;font-size:14.5px}
+.agent .role{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.08em;margin-top:2px}
+.agent .status{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:800;padding:4px 7px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.agent .status.on{color:#02120a;background:var(--green);border-color:var(--green);box-shadow:0 0 10px rgba(0,255,163,.55)}
+.agent .status.bad{color:#fff;background:var(--red);border-color:var(--red);box-shadow:0 0 10px rgba(255,56,96,.5)}
+.agent .status.warn{color:#1a0e00;background:var(--orange);border-color:var(--orange);box-shadow:0 0 10px rgba(255,154,31,.5)}
+.agent .big{font-family:var(--mono);font-size:17px;font-weight:700;margin:11px 0 4px;word-break:break-word}
+.agent .desc{color:var(--muted);font-size:12px;line-height:1.6;margin:0}
+.agent canvas{width:100%;height:30px;display:block;margin-top:auto;padding-top:8px}
+/* tape + flow + log */
+.grid3{margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:10px;align-items:stretch}
+.tape{height:236px;overflow:hidden;font-family:var(--mono);font-size:11.5px;line-height:1.9}
+.tape .row{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(27,37,71,.8);padding:0 2px;white-space:nowrap}
+.tape .buy{color:var(--green)} .tape .sell{color:var(--red)} .tape .tm{color:var(--dim)}
+.flowBars{display:grid;gap:6px;margin-top:4px}
+.flowRow{display:grid;grid-template-columns:52px 1fr 64px;gap:8px;align-items:center;font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.flowTrack{height:11px;background:rgba(0,0,0,.4);border:1px solid var(--line);display:flex}
+.flowTrack i{display:block;height:100%}
+.flowBuy{background:linear-gradient(90deg,#00795a,var(--green));box-shadow:0 0 8px rgba(0,255,163,.4)}
+.flowSell{background:linear-gradient(90deg,var(--red),#8f1030);box-shadow:0 0 8px rgba(255,56,96,.35);margin-left:auto}
+.flowTotal{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;margin-top:10px;border-top:1px dashed var(--line2);padding-top:9px}
+.log{height:236px;overflow:auto;background:#03040a;border:1px solid var(--line);padding:10px;font-family:var(--mono);font-size:11.5px;line-height:1.75;color:#b9c8ee}
+.log .t{color:var(--dim)} .log .ok{color:var(--green)} .log .bad{color:var(--red)} .log .warn{color:var(--orange)} .log .sys{color:var(--cyan)}
+/* ledger */
+.bottom{margin-top:10px;display:grid;grid-template-columns:1.2fr .8fr;gap:10px;align-items:start}
+.ledgerGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.ledgerItem{border:1px solid var(--line);padding:10px;background:rgba(0,0,0,.3)}
+.ledgerItem span{font-size:10px;color:var(--dim);font-family:var(--mono);letter-spacing:.06em}
+.ledgerItem b{display:block;font-family:var(--mono);font-size:19px;margin-top:5px}
+.progress{height:12px;background:#04060f;border:1px solid var(--line2);margin-top:11px;position:relative;overflow:hidden}
+.progress i{position:absolute;inset:0;width:0;background:linear-gradient(90deg,#7a3cff,var(--purple),var(--cyan));box-shadow:0 0 12px rgba(0,229,255,.6);transition:width .4s}
+.equityRow{display:flex;gap:8px;margin-top:11px}
+.equityRow input{flex:1;min-width:0;background:#03040a;border:1px solid var(--line2);color:var(--text);padding:10px;font-family:var(--mono);font-size:14px}
+.equityRow button{background:var(--cyan);color:#02131a;border:0;font-weight:800;padding:10px 15px;cursor:pointer;font-family:var(--sans)}
+.rules{list-style:none;padding:0;margin:0;display:grid;gap:9px}
+.rules li{display:flex;gap:9px;line-height:1.6;color:#c9d6f5;font-size:13.5px}
+.num{font-family:var(--mono);color:#0a0618;background:var(--purple);width:21px;height:21px;display:grid;place-items:center;font-weight:800;font-size:11.5px;flex-shrink:0;margin-top:2px;box-shadow:0 0 8px rgba(160,107,255,.5)}
+.foot{margin-top:10px;color:var(--dim);font-size:12px;line-height:1.7;border:1px solid var(--line);padding:12px 13px;background:rgba(0,0,0,.25)}
+.foot b{color:var(--muted)}
+@media(max-width:960px){.hero,.grid3,.bottom{grid-template-columns:1fr}.agents{grid-template-columns:1fr 1fr}.gauges{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.ledgerGrid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.agents{grid-template-columns:1fr}.price{font-size:40px}canvas#chart{height:160px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <div class="dot" id="liveDot"></div>
+      <div>
+        <h1>BTC 挑战终端 · LIVE DESK</h1>
+        <p>BTCUSDT PERPETUAL · MULTI-AGENT MONITOR · WS LIVE + REST FALLBACK</p>
+      </div>
+    </div>
+    <div class="topmeta">
+      <span class="pill live poll" id="connPill">● CONNECTING</span>
+      <span class="pill">数据源 <b id="sourceName">—</b></span>
+      <span class="pill">延迟 <b id="latency">—</b></span>
+      <span class="pill">JST <b id="clock">—</b></span>
+      <span class="pill">上次成交 <b id="lastTick">—</b></span>
+    </div>
+  </header>
+
+  <div class="disclaimer" role="note"><strong>风险提示：</strong>本页仅是个人交易监控工具，不构成投资建议，也不承诺任何收益。合约交易风险极高，可能损失全部本金。所有下单由本人手动执行、自负盈亏；历史表现不代表未来结果。</div>
+
+  <div class="error" id="errorBox"><strong>实时流连接失败，正在切 REST 轮询备线。</strong><span id="errorText"> WebSocket 三线不可达时会自动降级为每 5 秒 REST 轮询拉取真实行情（顶部标明 POLLING 与来源）；全部来源都不可达时才显示离线，本页不会用估算或模拟数字代替。</span>
+    <div style="margin-top:9px"><button class="retryBtn" id="retryBtn">重新连接</button></div>
+  </div>
+  <div id="pollBanner" style="display:none;margin-top:10px;border:1px solid #6b4a12;background:#1c1406;color:#ffd88a;padding:10px 13px;font-size:12.5px;line-height:1.6"><strong>REST 轮询模式：</strong><span id="pollBannerText">WebSocket 不可达，当前每 5 秒通过 REST 拉取真实行情，价格为轮询快照、非逐笔成交。系统会定期重试 WebSocket，恢复后自动切回 LIVE。</span></div>
+
+  <section class="hero">
+    <div class="panel" id="pricePanel">
+      <h2>Market / BTCUSDT 永续 · 实时逐笔 / REST 轮询自动切换 <span class="r" id="streamInfo">AUTO · WS 优先 —</span></h2>
+      <div class="priceRow">
+        <div class="price" id="price">$—<small> USDT</small></div>
+        <div class="change" id="change24">24h —</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>24H HIGH</span><b id="high24">—</b></div>
+        <div class="stat"><span>24H LOW</span><b id="low24">—</b></div>
+        <div class="stat"><span>24H VOLUME BTC</span><b id="vol24">—</b></div>
+        <div class="stat"><span>FUNDING · OKX 校验</span><b id="fundingTop">—</b></div>
+      </div>
+      <canvas id="chart" width="960" height="380" aria-label="BTC 15分钟K线图（辅助视图）"></canvas>
+      <div class="klineMeta"><span id="rangeText">15m 区间：等待数据…</span><span>15m K线 = 辅助视图 · 信号以 1h 结构为准</span></div>
+      <canvas id="tickSpark" width="960" height="88" aria-label="逐笔成交价格流"></canvas>
+      <div class="klineMeta"><span>逐笔成交价流（每笔真实成交追加一点）</span><span id="tickCount">成交笔数 0</span></div>
+    </div>
+
+    <div class="panel signalBox" id="signalPanel">
+      <div class="signalLabel">SIGNAL DESK · 1H 结构 + 双过滤合成</div>
+      <div class="signalBig wait" id="signalBig">WAIT</div>
+      <p class="signalDesc" id="signalDesc">正在接入实时流并读取 1h 结构、1h 成交量与资金费率。三项条件同时满足才给方向，否则保持等待。</p>
+      <div class="cdNums">
+        <div><b id="cdD">—</b><span>天</span></div><div><b id="cdH">—</b><span>时</span></div><div><b id="cdM">—</b><span>分</span></div><div><b id="cdS">—</b><span>秒</span></div>
+      </div>
+      <p style="color:var(--muted);font-size:12px;margin:9px 0 0;font-family:var(--mono)" id="cdNote">DEADLINE 2026-10-29 23:00 JST</p>
+      <div class="tfNote"><strong style="color:var(--text)">周期口径（不混用）：</strong>信号突破与量比按 <b>1 小时</b>结构计算——1h 收盘站上/跌破前 20 根 1h 区间、突破根量 ≥ 前 20 根均量 1.50×、|资金费率| &lt; 0.050%。左侧 K 线为 <b>15 分钟</b>辅助视图，只看位置、不产生信号。关键位参考：上方 $80,800–81,000 / 下方 $79,000。</div>
+    </div>
+  </section>
+
+  <section class="gauges">
+    <div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" fill="none" stroke-width="9"/><circle id="gFundArc" cx="50" cy="50" r="42" fill="none" stroke="#00e5ff" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 264"/></svg><div class="val" id="gFundVal">—</div><div class="cap">FUNDING GAUGE</div><div class="sub" id="gFundSub">|费率| &lt; 0.050% 通过</div></div>
+    <div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" fill="none" stroke-width="9"/><circle id="gVolArc" cx="50" cy="50" r="42" fill="none" stroke="#a06bff" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 264"/></svg><div class="val" id="gVolVal">—</div><div class="cap">VOLUME RATIO · 1H</div><div class="sub">≥ 1.50× 通过</div></div>
+    <div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" fill="none" stroke-width="9"/><circle id="gDistArc" cx="50" cy="50" r="42" fill="none" stroke="#ff9a1f" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 264"/></svg><div class="val" id="gDistVal">—</div><div class="cap">POSITION IN 1H RANGE</div><div class="sub" id="gDistSub">区间内位置 · 0%=下沿 100%=上沿</div></div>
+    <div class="gauge"><svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="42" fill="none" stroke-width="9"/><circle id="gGoalArc" cx="50" cy="50" r="42" fill="none" stroke="#00ffa3" stroke-width="9" stroke-linecap="round" stroke-dasharray="0 264"/></svg><div class="val" id="gGoalVal">0%</div><div class="cap">CHALLENGE $50 → $100</div><div class="sub" id="gGoalSub">按手填权益计算</div></div>
+  </section>
+
+  <section class="floorWrap" id="floorWrap">
+    <h2>Agent Floor / 六个工位 · 状态全部由实时计算驱动 <span style="color:var(--dim)">连线脉冲 = 真实成交触发</span></h2>
+    <canvas id="neural" width="1200" height="420" aria-hidden="true"></canvas>
+    <div class="agents">
+      <article class="agent" id="agScan">
+        <div class="agentHead">
+          <svg class="avatar" viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="#0a1430"/><rect x="1" y="1" width="6" height="2" fill="#00e5ff"/><rect x="1" y="3" width="2" height="2" fill="#eaf2ff"/><rect x="5" y="3" width="2" height="2" fill="#eaf2ff"/><rect x="2" y="6" width="4" height="1" fill="#00e5ff"/></svg>
+          <div><h3>SCAN 扫描员</h3><div class="role">01 · 1H BREAKOUT WATCH</div></div><span class="status" data-st>STANDBY</span>
+        </div>
+        <div class="big">—</div><p class="desc">盯 1h 收盘价与前 20 根 1h 区间：站上上沿 / 跌破下沿才点亮，区间内保持巡逻。</p>
+        <canvas width="300" height="60" data-spark aria-hidden="true"></canvas>
+      </article>
+      <article class="agent" id="agVol">
+        <div class="agentHead">
+          <svg class="avatar" viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="#160a30"/><rect x="1" y="5" width="1" height="2" fill="#a06bff"/><rect x="3" y="3" width="1" height="4" fill="#a06bff"/><rect x="5" y="1" width="1" height="6" fill="#ff5ec4"/><rect x="1" y="1" width="2" height="2" fill="#eaf2ff"/><rect x="5" y="6" width="2" height="1" fill="#a06bff"/></svg>
+          <div><h3>VOLUME 量能员</h3><div class="role">02 · 1H VOLUME FILTER</div></div><span class="status" data-st>STANDBY</span>
+        </div>
+        <div class="big">—</div><p class="desc">突破根 1h 成交量 ÷ 前 20 根均量。不到 1.50× 就拦下，防假突破。</p>
+        <canvas width="300" height="60" data-spark aria-hidden="true"></canvas>
+      </article>
+      <article class="agent" id="agFund">
+        <div class="agentHead">
+          <svg class="avatar" viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="#30160a"/><rect x="2" y="1" width="4" height="1" fill="#ff9a1f"/><rect x="1" y="2" width="6" height="4" fill="#ff9a1f"/><rect x="2" y="3" width="1" height="2" fill="#0a0f22"/><rect x="5" y="3" width="1" height="2" fill="#0a0f22"/><rect x="3" y="6" width="2" height="1" fill="#eaf2ff"/></svg>
+          <div><h3>FUNDING 费率员</h3><div class="role">03 · FUNDING FILTER · OKX</div></div><span class="status" data-st>STANDBY</span>
+        </div>
+        <div class="big">—</div><p class="desc">永续资金费率过热 = 一边挤爆。|费率| ≥ 0.050% 直接否决追单。</p>
+        <canvas width="300" height="60" data-spark aria-hidden="true"></canvas>
+      </article>
+      <article class="agent" id="agSignal">
+        <div class="agentHead">
+          <svg class="avatar" viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="#0a3016"/><rect x="3" y="0" width="2" height="2" fill="#00ffa3"/><rect x="1" y="2" width="6" height="4" fill="#00ffa3"/><rect x="2" y="3" width="1" height="1" fill="#0a0f22"/><rect x="5" y="3" width="1" height="1" fill="#0a0f22"/><rect x="2" y="6" width="4" height="1" fill="#eaf2ff"/></svg>
+          <div><h3>SIGNAL 信号台</h3><div class="role">04 · SYNTHESIS DESK</div></div><span class="status" data-st>WAIT</span>
+        </div>
+        <div class="big">WAIT</div><p class="desc">三工位全绿才合成 LONG / SHORT；缺任何一项，输出只有 WAIT。</p>
+        <canvas width="300" height="60" data-spark aria-hidden="true"></canvas>
+      </article>
+      <article class="agent" id="agRisk">
+        <div class="agentHead">
+          <svg class="avatar" viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="#300a16"/><rect x="2" y="0" width="4" height="2" fill="#ff3860"/><rect x="1" y="2" width="6" height="5" fill="#ff3860"/><rect x="3" y="3" width="2" height="2" fill="#eaf2ff"/><rect x="3" y="7" width="2" height="1" fill="#ff9a1f"/></svg>
+          <div><h3>RISK 风控官</h3><div class="role">05 · GUARDRAILS</div></div><span class="status on" data-st>ARMED</span>
+        </div>
+        <div class="big">止损必挂 · 已武装</div><p class="desc">单笔计划亏损 ≤ $10、当日 −$12 停手、总 −$20 终止、每天 ≤ 3 笔。无回报止损已挂，不发下一信号。</p>
+        <canvas width="300" height="60" data-spark aria-hidden="true"></canvas>
+      </article>
+      <article class="agent" id="agLedger">
+        <div class="agentHead">
+          <svg class="avatar" viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" fill="#0a2430"/><rect x="1" y="1" width="6" height="6" fill="#3dd6ff"/><rect x="2" y="2" width="4" height="1" fill="#0a0f22"/><rect x="2" y="4" width="1" height="1" fill="#0a0f22"/><rect x="4" y="4" width="1" height="1" fill="#0a0f22"/><rect x="6" y="4" width="1" height="1" fill="#0a0f22"/><rect x="2" y="6" width="4" height="1" fill="#0a0f22"/></svg>
+          <div><h3>LEDGER 账房</h3><div class="role">06 · CHALLENGE BOOK</div></div><span class="status" data-st>OPEN</span>
+        </div>
+        <div class="big">$50.00 / $100</div><p class="desc">只记你手填的交易所实际权益，不编造成交与盈亏。无成交回报 = 账本不动。</p>
+        <canvas width="300" height="60" data-spark aria-hidden="true"></canvas>
+      </article>
+    </div>
+  </section>
+
+  <section class="grid3">
+    <div class="panel"><h2>Trade Tape / 逐笔成交 · 轮询快照 <span class="r" id="tapeMode">真实 WS 流 / REST 快照</span></h2><div class="tape" id="tape"><div style="color:var(--dim);font-family:var(--mono);font-size:12px">等待第一笔成交 / 第一次轮询…</div></div></div>
+    <div class="panel"><h2>Order Flow / 主动买卖量 <span class="r">近 60 秒 · 按成交聚合</span></h2>
+      <div class="flowBars" id="flowBars"></div>
+      <div class="flowTotal"><span class="up" id="flowBuyTot">BUY —</span><span id="flowImb">—</span><span class="down" id="flowSellTot">SELL —</span></div>
+      <p style="color:var(--dim);font-size:11.5px;line-height:1.6;margin:9px 0 0">由逐笔成交的主动买/卖方向聚合，不是盘口深度，也不是模拟数据；无成交时保持空白。</p>
+    </div>
+    <div class="panel"><h2>Signal Log / 信号日志流 <span class="r">本地时间</span></h2><div class="log" id="logBox" aria-live="polite"></div></div>
+  </section>
+
+  <section class="bottom">
+    <div class="panel">
+      <h2>Challenge Ledger / 挑战账本 <span class="r">$50 起步 → $100 目标 · 2026-10-26 → 10-29</span></h2>
+      <div class="ledgerGrid">
+        <div class="ledgerItem"><span>START · 起始本金</span><b>$50.00</b></div>
+        <div class="ledgerItem"><span>TARGET · 目标</span><b>$100.00</b></div>
+        <div class="ledgerItem"><span>CURRENT · 当前权益（手填）</span><b id="equityShow">$50.00</b></div>
+        <div class="ledgerItem"><span>GAP · 距目标</span><b id="gapShow">$50.00</b></div>
+      </div>
+      <div class="progress"><i id="progressBar"></i></div>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.6;margin:10px 0 0" id="progressText">进度 0%。当前权益默认是起始值；成交后按交易所实际余额手填更新（仅本页临时计算，不保存、不上传）。</p>
+      <div class="equityRow"><input id="equityInput" type="number" min="0" step="0.01" placeholder="输入交易所当前权益 USD" aria-label="输入当前权益"><button id="equityBtn">更新账本</button></div>
+    </div>
+    <div class="panel">
+      <h2>Execution Rules / 执行纪律</h2>
+      <ul class="rules">
+        <li><span class="num">1</span><span><strong>双过滤才行动：</strong>1h 突破必须同时通过量比 ≥1.50× 与 |资金费率| &lt; 0.050%，缺一律等待。</span></li>
+        <li><span class="num">2</span><span><strong>止损先挂交易所：</strong>确认下单前必须先设好止损；回报「成交价 + 止损已挂」后才解锁下一信号。</span></li>
+        <li><span class="num">3</span><span><strong>止盈不挂交易所：</strong>止盈不预挂单，到目标由信号台人工通知后手动平仓。</span></li>
+        <li><span class="num">4</span><span><strong>手动执行：</strong>本面板只做监控与计算，不自动下单、不托管资金、不控制你的手机或交易所 App。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="foot"><b>数据口径：</b>优先 WebSocket 实时流（Binance 主线 → Binance Vision 镜像 → Bybit 备用线，逐笔成交驱动）；WebSocket 全部不可达时自动降级为 <b>REST 轮询备线（每 5 秒）</b>：Binance Futures / Binance Vision / OKX / Bybit / Coinbase / Kraken / Bitstamp / CoinGecko 八路<b>并行竞速</b>、第一路成功即出价，单请求 4.5 秒超时、轮询卡死自动复位、僵死 WS（20 秒无消息）自动重连，顶部会标明 <b>POLLING + 实际来源 + 上次更新时间</b>，成交带里轮询数据标为「REST 快照」不冒充逐笔成交。资金费率与 1h 结构由 OKX 公开接口交叉校验。REST 也全部不可达时才显示离线，绝不用模拟数字填充；网络恢复后轮询会自动出价、WebSocket 恢复后自动切回 LIVE。分享给客户打开时同理：能连 WS 看逐笔，连不上 WS 也能靠轮询看到真实价格。</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var logBox=$('logBox'), tapeEl=$('tape');
+var S={
+  equity:50, source:'—', ws:null, wsKind:null, connected:false, mode:'boot',
+  price:null, prevPrice:null, chg:null, high:null, low:null, vol:null,
+  candles15:[], candles1h:[], fundingPct:null, fundingSrc:'—',
+  tickPrices:[], trades:[], tradeCount:0, lastTradeAt:0, lastMsgAt:0, lastPollAt:0,
+  signal:'WAIT', lastLogKey:'', impulse:0, flowBuckets:{},
+  restTimer:null, wsRetryTimer:null, restFailures:0, pollCount:0, restBusy:false, pollStartedAt:0, wsAttempting:false,
+  hist:{scan:[],vol:[],fund:[],sig:[]}
+};
+function fmt(n,d){if(n===null||n===undefined||isNaN(n))return '—';return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function fp(n){return '$'+fmt(n,2);}
+function nowStr(){return new Date().toLocaleTimeString('zh-CN',{hour12:false});}
+function log(msg,cls){var d=document.createElement('div');d.innerHTML='<span class="t">['+nowStr()+']</span> '+(cls?'<span class="'+cls+'">'+msg+'</span>':msg);logBox.prepend(d);while(logBox.children.length>90)logBox.removeChild(logBox.lastChild);}
+function fetchJson(url,timeoutMs){
+  var ms=timeoutMs||4500, ctrl=null, to=null, req;
+  try{
+    ctrl=new AbortController();
+    to=setTimeout(function(){try{ctrl.abort();}catch(e){}},ms);
+    req=fetch(url,{cache:'no-store',signal:ctrl.signal});
+  }catch(e){ req=fetch(url,{cache:'no-store'}); }
+  var timed=new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms+1500);});
+  return Promise.race([req,timed]).then(function(r){if(to)clearTimeout(to);if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(function(err){if(to)clearTimeout(to);throw err;});
+}
+
+/* ---------- countdown + clock ---------- */
+function countdown(){
+  var end=new Date('2026-10-29T23:00:00+09:00').getTime(), diff=end-Date.now();
+  var jst=new Date(Date.now()+9*3600*1000);
+  $('clock').textContent=jst.toISOString().substr(11,8);
+  if(diff<=0){$('cdD').textContent='0';$('cdH').textContent='00';$('cdM').textContent='00';$('cdS').textContent='00';$('cdNote').textContent='挑战窗口已结束（2026-10-29 23:00 JST）。以下仍为实时行情，仅供复盘。';return;}
+  $('cdD').textContent=Math.floor(diff/86400000);
+  $('cdH').textContent=String(Math.floor(diff%86400000/3600000)).padStart(2,'0');
+  $('cdM').textContent=String(Math.floor(diff%3600000/60000)).padStart(2,'0');
+  $('cdS').textContent=String(Math.floor(diff%60000/1000)).padStart(2,'0');
+  var refAt=S.mode==='rest'?S.lastPollAt:S.lastTradeAt;
+  if(refAt){var ago2=Math.max(0,Math.round((Date.now()-refAt)/1000));$('lastTick').textContent=ago2+'s 前';}
+  if(S.lastMsgAt&&S.connected&&S.mode==='ws'){$('latency').textContent='流活跃 · '+Math.max(0,Math.round((Date.now()-S.lastMsgAt)))+'ms 前消息';}
+  else if(S.connected&&S.mode==='rest'){$('latency').textContent='轮询 5s · 上次 '+(S.lastPollAt?Math.max(0,Math.round((Date.now()-S.lastPollAt)/1000))+'s 前':'—');}
+}
+setInterval(countdown,1000); countdown();
+
+/* ---------- ledger ---------- */
+function setArc(id,pct,color){var el=$(id);var p=Math.max(0,Math.min(1,pct));el.setAttribute('stroke-dasharray',(p*264)+' 264');if(color)el.setAttribute('stroke',color);}
+function updateLedger(){
+  var eq=S.equity;
+  $('equityShow').textContent='$'+fmt(eq,2);
+  $('gapShow').textContent='$'+fmt(Math.max(0,100-eq),2);
+  var pct=Math.max(0,Math.min(100,(eq-50)/50*100));
+  $('progressBar').style.width=pct+'%';
+  $('progressText').textContent='进度 '+fmt(pct,1)+'% · 当前较起始 '+(eq>=50?'+':'')+fmt((eq/50-1)*100,1)+'% · 距目标还差 $'+fmt(Math.max(0,100-eq),2)+'。';
+  setArc('gGoalArc',pct/100); $('gGoalVal').textContent=fmt(pct,0)+'%'; $('gGoalSub').textContent='权益 $'+fmt(eq,2)+' · 还差 $'+fmt(Math.max(0,100-eq),2);
+  var led=$('agLedger'); led.querySelector('.big').textContent='$'+fmt(eq,2)+' / $100';
+  drawAgentSpark(led, S.hist.sig.length?S.hist.sig:[0,pct], '#3dd6ff');
+}
+$('equityBtn').addEventListener('click',function(){
+  var v=parseFloat($('equityInput').value);
+  if(isNaN(v)||v<0){log('权益输入无效，未更新账本。','warn');return;}
+  S.equity=v; updateLedger(); log('账房更新：权益手填为 $'+fmt(v,2)+'（仅本页临时计算）。','sys');
+});
+
+/* ---------- charts ---------- */
+function drawChart(){
+  var c=$('chart'),ctx=c.getContext('2d'),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  var k=S.candles15.slice(-48); if(k.length<2){ctx.fillStyle='#5a6a94';ctx.font='24px monospace';ctx.fillText('WAITING FOR 15m CANDLES…',30,60);return;}
+  var min=Math.min.apply(null,k.map(function(x){return x.l})),max=Math.max.apply(null,k.map(function(x){return x.h})),pad=(max-min)*0.08||10;min-=pad;max+=pad;
+  function Y(v){return H-((v-min)/(max-min))*H;}
+  ctx.strokeStyle='rgba(0,229,255,.10)';ctx.lineWidth=1;
+  for(var g=1;g<5;g++){var y=H*g/5;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  var bw=W/k.length;
+  k.forEach(function(cd,i){var x=i*bw+bw/2,up=cd.c>=cd.o,col=up?'#00ffa3':'#ff3860';ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=Math.max(1,bw*0.18);ctx.beginPath();ctx.moveTo(x,Y(cd.h));ctx.lineTo(x,Y(cd.l));ctx.stroke();var t=Y(Math.max(cd.o,cd.c)),b=Y(Math.min(cd.o,cd.c));ctx.fillRect(x-bw*0.3,t,Math.max(2,bw*0.6),Math.max(2,b-t));});
+  if(S.price){ctx.strokeStyle='rgba(255,154,31,.85)';ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(0,Y(S.price));ctx.lineTo(W,Y(S.price));ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ff9a1f';ctx.font='bold 20px monospace';ctx.fillText(fp(S.price),W-170,Y(S.price)-8);}
+  ctx.fillStyle='#5a6a94';ctx.font='16px monospace';ctx.fillText(fp(max-pad),8,22);ctx.fillText(fp(min+pad),8,H-8);
+}
+function drawTickSpark(){
+  var c=$('tickSpark'),ctx=c.getContext('2d'),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+  var a=S.tickPrices;if(a.length<2)return;
+  var min=Math.min.apply(null,a),max=Math.max.apply(null,a),pad=(max-min)*0.15||5;min-=pad;max+=pad;
+  ctx.beginPath();a.forEach(function(v,i){var x=i/(119)*W,y=H-((v-min)/(max-min))*H;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+  ctx.strokeStyle='#00e5ff';ctx.lineWidth=2;ctx.stroke();ctx.lineTo((a.length-1)/119*W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fillStyle='rgba(0,229,255,.08)';ctx.fill();
+  var lx=(a.length-1)/119*W,ly=H-((a[a.length-1]-min)/(max-min))*H;ctx.beginPath();ctx.arc(lx,ly,4,0,7);ctx.fillStyle='#00ffa3';ctx.fill();
+}
+function drawAgentSpark(card,data,color){
+  var cv=card.querySelector('[data-spark]');if(!cv||!data||data.length<2)return;
+  var ctx=cv.getContext('2d'),W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+  var min=Math.min.apply(null,data),max=Math.max.apply(null,data);if(max-min<1e-9){max+=1;min-=1;}
+  ctx.beginPath();data.forEach(function(v,i){var x=i/(data.length-1)*W,y=H-4-((v-min)/(max-min))*(H-8);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.stroke();
+}
+
+/* ---------- neural flow (driven by real trades) ---------- */
+var neural=$('neural'),nctx=neural.getContext('2d'),particles=[];
+function neuralSize(){var r=$('floorWrap').getBoundingClientRect();neural.width=Math.max(600,r.width);neural.height=Math.max(300,r.height);}
+window.addEventListener('resize',neuralSize);
+function agentCenters(){
+  var wrap=$('floorWrap').getBoundingClientRect(),out=[];
+  document.querySelectorAll('.agent').forEach(function(el){var r=el.getBoundingClientRect();out.push({x:r.left-wrap.left+r.width/2,y:r.top-wrap.top+20});});
+  return out;
+}
+function neuralLoop(){
+  var W=neural.width,H=neural.height;nctx.clearRect(0,0,W,H);
+  var pts=agentCenters(); if(pts.length<2){requestAnimationFrame(neuralLoop);return;}
+  nctx.lineWidth=1;
+  for(var i=0;i<pts.length-1;i++){var a=pts[i],b=pts[i+1];var gr=nctx.createLinearGradient(a.x,a.y,b.x,b.y);gr.addColorStop(0,'rgba(0,229,255,.20)');gr.addColorStop(.5,'rgba(160,107,255,.20)');gr.addColorStop(1,'rgba(255,154,31,.20)');nctx.strokeStyle=gr;nctx.beginPath();nctx.moveTo(a.x,a.y);nctx.quadraticCurveTo((a.x+b.x)/2,Math.min(a.y,b.y)-26,b.x,b.y);nctx.stroke();}
+  // spawn rate scales with real trade impulse; idle = near zero
+  if(S.impulse>0.4&&particles.length<140){particles.push({t:0,seg:Math.floor(Math.random()*(pts.length-1)),sp:0.004+Math.random()*0.010+S.impulse*0.0012,hue:Math.random()});S.impulse*=0.86;}
+  particles=particles.filter(function(p){return p.t<=1;});
+  particles.forEach(function(p){p.t+=p.sp;var a=pts[p.seg],b=pts[p.seg+1];if(!a||!b)return;var mx=(a.x+b.x)/2,my=Math.min(a.y,b.y)-26;var x=(1-p.t)*(1-p.t)*a.x+2*(1-p.t)*p.t*mx+p.t*p.t*b.x;var y=(1-p.t)*(1-p.t)*a.y+2*(1-p.t)*p.t*my+p.t*p.t*b.y;nctx.beginPath();nctx.arc(x,y,2.1,0,7);nctx.fillStyle=p.hue<.4?'rgba(0,229,255,.95)':(p.hue<.75?'rgba(160,107,255,.95)':'rgba(255,154,31,.95)');nctx.shadowColor=nctx.fillStyle;nctx.shadowBlur=8;nctx.fill();nctx.shadowBlur=0;});
+  requestAnimationFrame(neuralLoop);
+}
+
+/* ---------- order flow ---------- */
+function renderFlow(){
+  var wrap=$('flowBars');wrap.innerHTML='';
+  var now=Date.now(),totB=0,totS=0,rows=[];
+  for(var i=5;i>=0;i--){var start=now-(i+1)*10000,end=now-i*10000,b=0,s=0;
+    S.trades.forEach(function(t){if(t.ts>=start&&t.ts<end){if(t.side==='BUY')b+=t.q;else s+=t.q;}});
+    rows.push({label:i===0?'当前10s':'-'+(i*10)+'s',b:b,s:s});totB+=b;totS+=s;}
+  var max=0;rows.forEach(function(r){max=Math.max(max,r.b+r.s);});
+  rows.forEach(function(r){var row=document.createElement('div');row.className='flowRow';
+    var tot=r.b+r.s,bp=max?r.b/max*100:0,sp=max?r.s/max*100:0;
+    row.innerHTML='<span>'+r.label+'</span><div class="flowTrack"><i class="flowBuy" style="width:'+bp+'%"></i><i class="flowSell" style="width:'+sp+'%"></i></div><span>'+fmt(tot,3)+' BTC</span>';
+    wrap.appendChild(row);});
+  $('flowBuyTot').textContent='BUY '+fmt(totB,3)+' BTC';
+  $('flowSellTot').textContent='SELL '+fmt(totS,3)+' BTC';
+  var imb=(totB+totS)>0?(totB-totS)/(totB+totS)*100:0;
+  $('flowImb').textContent=(totB+totS)>0?('净 '+(imb>=0?'+':'')+fmt(imb,1)+'%'):'等待成交';
+  $('flowImb').style.color=imb>=0?'var(--green)':'var(--red)';
+}
+
+/* ---------- trade handling ---------- */
+function onTrade(price,qty,side,ts){
+  if(!price||isNaN(price))return;
+  var up=S.price===null?true:price>=S.price;
+  S.prevPrice=S.price;S.price=price;S.lastTradeAt=ts||Date.now();S.lastMsgAt=Date.now();S.tradeCount++;
+  S.trades.push({p:price,q:qty,side:side,ts:S.lastTradeAt});if(S.trades.length>600)S.trades.shift();
+  S.tickPrices.push(price);if(S.tickPrices.length>120)S.tickPrices.shift();
+  S.impulse=Math.min(14,S.impulse+1.6);
+  var pEl=$('price');pEl.innerHTML=fp(price)+'<small> USDT</small>';
+  pEl.classList.remove('up','down');void pEl.offsetWidth;pEl.classList.add(up?'up':'down');
+  var panel=$('pricePanel');panel.classList.remove('pulseUp','pulseDown');void panel.offsetWidth;panel.classList.add(up?'pulseUp':'pulseDown');
+  var scan=$('agScan');scan.classList.remove('active');void scan.offsetWidth;scan.classList.add('active');setTimeout(function(){scan.classList.remove('active');},450);
+  // tape
+  if(S.tradeCount===1)tapeEl.innerHTML='';
+  var row=document.createElement('div');row.className='row';
+  row.innerHTML='<span class="tm">'+nowStr()+'</span><span class="'+(side==='BUY'?'buy':'sell')+'">'+side+' '+fp(price)+'</span><span>'+fmt(qty,4)+' BTC</span>';
+  tapeEl.prepend(row);while(tapeEl.children.length>42)tapeEl.removeChild(tapeEl.lastChild);
+  $('tickCount').textContent='成交笔数 '+S.tradeCount+' · '+S.source;
+  if(S.tradeCount%3===0){drawTickSpark();renderFlow();}
+  if(S.tradeCount%10===0)computeSignal(true);
+}
+function onTicker(t){
+  if(t.chg!==undefined&&t.chg!==null&&!isNaN(t.chg)){S.chg=t.chg;var el=$('change24');el.textContent='24h '+(t.chg>=0?'+':'')+fmt(t.chg,2)+'% '+(t.chg>=0?'▲':'▼');el.className='change '+(t.chg>=0?'up':'down');}
+  if(t.high){S.high=t.high;$('high24').textContent=fp(t.high);}
+  if(t.low){S.low=t.low;$('low24').textContent=fp(t.low);}
+  if(t.vol){S.vol=t.vol;$('vol24').textContent=fmt(t.vol,2);}
+  S.lastMsgAt=Date.now();
+}
+function onKline15(cd){
+  var k=S.candles15;if(!k.length){k.push(cd);}else{var last=k[k.length-1];if(cd.t===last.t)k[k.length-1]=cd;else if(cd.t>last.t)k.push(cd);}
+  if(S.candles15.length>60)S.candles15.shift();
+  drawChart();
+  var lows=S.candles15.map(function(x){return x.l}),highs=S.candles15.map(function(x){return x.h});
+  if(lows.length)$('rangeText').textContent='15m 区间（近'+S.candles15.length+'根）：'+fp(Math.min.apply(null,lows))+' — '+fp(Math.max.apply(null,highs));
+}
+
+/* ---------- signal (1h structure) ---------- */
+function setAgent(id,stClass,stText,big){
+  var el=$(id);if(!el)return;
+  el.classList.remove('pass','fail','warnst');if(stClass)el.classList.add(stClass);
+  var st=el.querySelector('[data-st]');st.textContent=stText;st.className='status'+(stClass==='pass'?' on':stClass==='fail'?' bad':stClass==='warnst'?' warn':'');
+  if(big!==undefined)el.querySelector('.big').textContent=big;
+}
+function computeSignal(light){
+  var k=S.candles1h, price=S.price;
+  // funding gauge always refresh if known
+  if(S.fundingPct!==null&&!isNaN(S.fundingPct)){
+    var fpct=S.fundingPct,fpass=Math.abs(fpct)<0.05;
+    $('fundingTop').textContent=(fpct>=0?'+':'')+fmt(fpct,4)+'%';
+    $('fundingTop').style.color=fpass?'var(--green)':'var(--red)';
+    setArc('gFundArc',Math.min(1,Math.abs(fpct)/0.10),fpass?'#00e5ff':'#ff3860');
+    $('gFundVal').textContent=(fpct>=0?'+':'')+fmt(fpct,3)+'%';
+    setAgent('agFund',fpass?'pass':'fail',fpass?'PASS':'BLOCKED',(fpct>=0?'+':'')+fmt(fpct,4)+'% / 8h · '+S.fundingSrc);
+    S.hist.fund.push(fpct);if(S.hist.fund.length>30)S.hist.fund.shift();
+    drawAgentSpark($('agFund'),S.hist.fund,'#ff9a1f');
+  } else { setAgent('agFund','warnst','NO DATA','费率未取得 · 不放行'); }
+  if(k.length<22||price===null){
+    setAgent('agScan','warnst','LOADING','1h 数据加载中…');
+    setAgent('agVol','warnst','LOADING','1h 数据加载中…');
+    return;
+  }
+  var closed=k.slice(0,-1); // last element = in-progress 1h candle
+  var lastClosed=closed[closed.length-1];
+  var prev=closed.slice(-21,-1);
+  var rH=Math.max.apply(null,prev.map(function(x){return x.h})), rL=Math.min.apply(null,prev.map(function(x){return x.l}));
+  var dir=0,scanTxt='区间内 · 上沿 '+fp(rH);
+  if(lastClosed.c>rH){dir=1;scanTxt='1h 收盘突破 '+fp(rH);}
+  else if(lastClosed.c<rL){dir=-1;scanTxt='1h 收盘跌破 '+fp(rL);}
+  setAgent('agScan',dir!==0?'pass':'warnst',dir!==0?'BREAKOUT':'WATCHING',scanTxt);
+  S.hist.scan.push(lastClosed.c);if(S.hist.scan.length>30)S.hist.scan.shift();
+  drawAgentSpark($('agScan'),S.hist.scan,'#00e5ff');
+  // volume: breakout candle (last closed) vs prev-20 avg
+  var avg=prev.reduce(function(a,x){return a+x.v;},0)/prev.length;
+  var ratio=avg?lastClosed.v/avg:0, vpass=ratio>=1.5;
+  setAgent('agVol',vpass?'pass':'fail',vpass?'PASS':'LOW',fmt(ratio,2)+'× · 需 ≥1.50×');
+  setArc('gVolArc',Math.min(1,ratio/3),'#a06bff');$('gVolVal').textContent=fmt(ratio,2)+'×';
+  S.hist.vol.push(ratio);if(S.hist.vol.length>30)S.hist.vol.shift();
+  drawAgentSpark($('agVol'),S.hist.vol,'#a06bff');
+  // position in range gauge (live price vs 1h range)
+  var pos=rH>rL?Math.max(0,Math.min(1,(price-rL)/(rH-rL))):0.5;
+  setArc('gDistArc',pos,'#ff9a1f');$('gDistVal').textContent=fmt(pos*100,0)+'%';
+  $('gDistSub').textContent=fp(rL)+' — '+fp(rH);
+  var fpass2=S.fundingPct!==null&&Math.abs(S.fundingPct)<0.05;
+  var signal='WAIT',cls='wait',desc='';
+  if(dir!==0&&vpass&&fpass2){signal=dir>0?'LONG':'SHORT';cls=dir>0?'long':'short';desc=(dir>0?'1h 向上突破':'1h 向下突破')+'成立，量比 '+fmt(ratio,2)+'× 与费率双过滤通过。按纪律：下单同时先把止损挂到交易所并回报，止盈不挂单、等通知手动平。';}
+  else if(dir!==0){desc='1h 已'+(dir>0?'向上突破':'向下突破')+'，但'+(!vpass&&!fpass2?'量比与费率均未通过':(!vpass?'量比只有 '+fmt(ratio,2)+'×，未达 1.50×':'资金费率过热'))+'，不追单。15m 图只作位置参考。';}
+  else{desc='1h 收盘仍在前 20 根区间 '+fp(rL)+' — '+fp(rH)+' 内，无突破。现价位于区间 '+fmt(pos*100,0)+'% 处，继续等待，不预判。';}
+  var changed=signal!==S.signal; S.signal=signal;
+  var sb=$('signalBig');sb.textContent=signal;sb.className='signalBig '+cls;
+  $('signalDesc').textContent=desc;
+  setAgent('agSignal',signal==='WAIT'?'warnst':'pass',signal,signal==='WAIT'?'等待三项齐备':(signal==='LONG'?'做多信号成立':'做空信号成立'));
+  var key=signal+'|'+dir+'|'+fmt(ratio,2)+'|'+(S.fundingPct===null?'na':fmt(S.fundingPct,4));
+  if(key!==S.lastLogKey){S.lastLogKey=key;log('信号台：<b>'+signal+'</b> · '+scanTxt+' · 量比 '+fmt(ratio,2)+'× · 费率 '+(S.fundingPct===null?'未取得':(S.fundingPct>=0?'+':'')+fmt(S.fundingPct,4)+'%')+' · 现价 '+(price?fp(price):'—'),signal==='WAIT'?'warn':(signal==='LONG'?'ok':'bad'));}
+  else if(!light){log('结构刷新：1h 区间 '+fp(rL)+' — '+fp(rH)+' · 信号维持 '+signal,'sys');}
+  if(changed){var sp=$('signalPanel');sp.classList.remove('pulseUp','pulseDown');void sp.offsetWidth;sp.classList.add(signal==='SHORT'?'pulseDown':'pulseUp');}
+}
+
+/* ---------- REST bootstrap / polling (klines + funding) ---------- */
+function normC(o,h,l,c,v,t){return {o:o,h:h,l:l,c:c,v:v,t:t};}
+function candlesBinance(interval,limit){
+  return fetchJson('https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval='+interval+'&limit='+limit).then(function(k){
+    return k.map(function(x){return normC(parseFloat(x[1]),parseFloat(x[2]),parseFloat(x[3]),parseFloat(x[4]),parseFloat(x[5]),x[0]);});});
+}
+function candlesVision(interval,limit){
+  return fetchJson('https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval='+interval+'&limit='+limit).then(function(k){
+    return k.map(function(x){return normC(parseFloat(x[1]),parseFloat(x[2]),parseFloat(x[3]),parseFloat(x[4]),parseFloat(x[5]),x[0]);});});
+}
+function candlesOKX(bar,limit){
+  return fetchJson('https://www.okx.com/api/v5/market/candles?instId=BTC-USDT-SWAP&bar='+bar+'&limit='+limit).then(function(r){
+    if(!r.data||!r.data.length)throw new Error('OKX empty');
+    return r.data.map(function(x){return normC(parseFloat(x[1]),parseFloat(x[2]),parseFloat(x[3]),parseFloat(x[4]),parseFloat(x[5]),parseInt(x[0]));}).reverse();});
+}
+function candlesBybit(interval,limit){
+  return fetchJson('https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCUSDT&interval='+interval+'&limit='+limit).then(function(r){
+    var list=r.result&&r.result.list;if(!list||!list.length)throw new Error('Bybit empty');
+    return list.map(function(x){return normC(parseFloat(x[1]),parseFloat(x[2]),parseFloat(x[3]),parseFloat(x[4]),parseFloat(x[5]),parseInt(x[0]));}).reverse();});
+}
+function loadCandles(){
+  var p15=candlesBinance('15m',50).catch(function(){return candlesVision('15m',50);}).catch(function(){return candlesOKX('15m',50);}).catch(function(){return candlesBybit('15',50);});
+  var p1h=candlesBinance('1h',30).catch(function(){return candlesVision('1h',30);}).catch(function(){return candlesOKX('1H',30);}).catch(function(){return candlesBybit('60',30);});
+  p15.then(function(k){S.candles15=k;drawChart();var ls=k.map(function(x){return x.l}),hs=k.map(function(x){return x.h});$('rangeText').textContent='15m 区间（近'+k.length+'根）：'+fp(Math.min.apply(null,ls))+' — '+fp(Math.max.apply(null,hs));}).catch(function(){log('15m K线三路均不可达，图表保持空白等待。','bad');});
+  p1h.then(function(k){S.candles1h=k;computeSignal(false);}).catch(function(){log('1h 结构三路均不可达，信号台保持等待、不猜测。','bad');});
+}
+function loadFunding(){
+  fetchJson('https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP').then(function(r){
+    var d=r.data&&r.data[0];if(!d)throw new Error('OKX funding empty');
+    S.fundingPct=parseFloat(d.fundingRate)*100;S.fundingSrc='OKX 永续';computeSignal(true);
+  }).catch(function(){
+    return fetchJson('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT').then(function(p){
+      S.fundingPct=parseFloat(p.lastFundingRate)*100;S.fundingSrc='Binance 永续';computeSignal(true);
+    });
+  }).catch(function(){log('资金费率来源暂不可达，费率过滤不放行。','warn');});
+}
+
+/* ---------- connection state (WS live / REST polling / offline) ---------- */
+function setConnLive(label){
+  S.mode='ws';S.connected=true;S.source=label;S.wsAttempting=false;
+  $('connPill').textContent='● LIVE · '+label;
+  $('connPill').className='pill live';
+  $('liveDot').className='dot';
+  $('sourceName').textContent=label+' · WS';
+  $('streamInfo').textContent='WS STREAM · '+label;
+  $('tapeMode').textContent='真实 WS 流';
+  $('pollBanner').style.display='none';
+  $('errorBox').classList.remove('show');
+}
+function setConnPoll(label){
+  S.mode='rest';S.connected=true;S.source=label;
+  $('connPill').textContent='● POLLING · '+label;
+  $('connPill').className='pill live poll';
+  $('liveDot').className='dot poll';
+  $('sourceName').textContent=label+' · REST 5s';
+  $('streamInfo').textContent='REST POLLING · '+label+' · 5s';
+  $('tapeMode').textContent='REST 快照（非逐笔）';
+  $('pollBanner').style.display='block';
+  $('pollBannerText').textContent='WebSocket 不可达，当前每 5 秒通过 REST 拉取真实行情（来源：'+label+'），价格为轮询快照、非逐笔成交。系统会定期重试 WebSocket，恢复后自动切回 LIVE。';
+  $('errorBox').classList.remove('show');
+}
+function setConnOff(label){
+  if(S.mode==='rest'&&S.price!==null)return; // 有轮询价时不降级为离线
+  S.mode='off';S.connected=false;S.source=label||'全部线路不可达';
+  $('connPill').textContent='● OFFLINE';
+  $('connPill').className='pill live off';
+  $('liveDot').className='dot off';
+  $('sourceName').textContent=S.source;
+  $('streamInfo').textContent='AUTO · WS + REST 均未连通';
+  $('pollBanner').style.display='none';
+}
+function setConn(ok,label){ if(ok)setConnLive(label); else setConnOff(label); }
+/* ---------- REST polling fallback (real data only) ---------- */
+function restBinanceFapi(){
+  return fetchJson('https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT').then(function(d){
+    var p=parseFloat(d.lastPrice); if(!p)throw new Error('bad price');
+    return {label:'Binance REST',price:p,high:parseFloat(d.highPrice),low:parseFloat(d.lowPrice),vol:parseFloat(d.volume),chg:parseFloat(d.priceChangePercent)};});
+}
+function restBinanceVision(){
+  return fetchJson('https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT').then(function(d){
+    var p=parseFloat(d.lastPrice); if(!p)throw new Error('bad price');
+    return {label:'Binance Vision REST',price:p,high:parseFloat(d.highPrice),low:parseFloat(d.lowPrice),vol:parseFloat(d.volume),chg:parseFloat(d.priceChangePercent)};});
+}
+function restOKX(){
+  return fetchJson('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT-SWAP').then(function(r){
+    var d=r.data&&r.data[0]; if(!d)throw new Error('OKX empty');
+    var p=parseFloat(d.last),o=parseFloat(d.open24h); if(!p)throw new Error('bad price');
+    return {label:'OKX REST',price:p,high:parseFloat(d.high24h),low:parseFloat(d.low24h),vol:parseFloat(d.volCcy24h||d.vol24h),chg:o?((p-o)/o*100):null};});
+}
+function restBybit(){
+  return fetchJson('https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT').then(function(r){
+    var d=r.result&&r.result.list&&r.result.list[0]; if(!d)throw new Error('Bybit empty');
+    var p=parseFloat(d.lastPrice); if(!p)throw new Error('bad price');
+    return {label:'Bybit REST',price:p,high:parseFloat(d.highPrice24h),low:parseFloat(d.lowPrice24h),vol:parseFloat(d.volume24h),chg:d.price24hPcnt!==undefined?parseFloat(d.price24hPcnt)*100:null};});
+}
+function restCoinbase(){
+  return fetchJson('https://api.exchange.coinbase.com/products/BTC-USD/stats').then(function(d){
+    var p=parseFloat(d.last),o=parseFloat(d.open); if(!p)throw new Error('bad price');
+    return {label:'Coinbase REST',price:p,high:parseFloat(d.high),low:parseFloat(d.low),vol:parseFloat(d.volume),chg:o?((p-o)/o*100):null};});
+}
+function restKraken(){
+  return fetchJson('https://api.kraken.com/0/public/Ticker?pair=XBTUSDT').then(function(r){
+    var d=r.result&&r.result.XBTUSDT; if(!d)throw new Error('Kraken empty');
+    var p=parseFloat(d.c&&d.c[0]); if(!p)throw new Error('bad price');
+    return {label:'Kraken REST',price:p,high:parseFloat(d.h&&d.h[1]),low:parseFloat(d.l&&d.l[1]),vol:parseFloat(d.v&&d.v[1]),chg:null};});
+}
+function restBitstamp(){
+  return fetchJson('https://www.bitstamp.net/api/v2/ticker/btcusdt/').then(function(d){
+    var p=parseFloat(d.last); if(!p)throw new Error('bad price');
+    return {label:'Bitstamp REST',price:p,high:parseFloat(d.high),low:parseFloat(d.low),vol:parseFloat(d.volume),chg:parseFloat(d.percent_change_24)};});
+}
+function restCoinGecko(){
+  return fetchJson('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true').then(function(d){
+    var b=d&&d.bitcoin, p=b?parseFloat(b.usd):0; if(!p)throw new Error('bad price');
+    return {label:'CoinGecko 参考价',price:p,high:null,low:null,vol:null,chg:(b.usd_24h_change!==undefined?parseFloat(b.usd_24h_change):null)};});
+}
+function raceFirst(fns){
+  return new Promise(function(res,rej){
+    var left=fns.length, done=false;
+    if(!left){rej(new Error('no sources'));return;}
+    fns.forEach(function(f){
+      var p; try{p=f();}catch(e){p=Promise.reject(e);}
+      p.then(function(v){if(!done){done=true;res(v);}},function(){left--;if(!left&&!done)rej(new Error('all sources failed'));});
+    });
+  });
+}
+function tryRestChain(){
+  // 并行竞速：八路同时发、第一路成功即出价，单路挂起/被拦不再拖死整条链
+  return raceFirst([restBinanceFapi,restBinanceVision,restOKX,restBybit,restCoinbase,restKraken,restBitstamp,restCoinGecko]);
+}
+function handleRestSnapshot(res){
+  var now=Date.now(); S.lastPollAt=now; S.lastMsgAt=now;
+  var price=res.price, up=S.price===null?true:price>=S.price;
+  S.prevPrice=S.price; S.price=price; S.pollCount++;
+  S.tickPrices.push(price); if(S.tickPrices.length>120)S.tickPrices.shift();
+  S.impulse=Math.min(10,S.impulse+1.2);
+  var pEl=$('price'); pEl.innerHTML=fp(price)+'<small> USDT</small>';
+  pEl.classList.remove('up','down'); void pEl.offsetWidth; pEl.classList.add(up?'up':'down');
+  var panel=$('pricePanel'); panel.classList.remove('pulseUp','pulseDown'); void panel.offsetWidth; panel.classList.add(up?'pulseUp':'pulseDown');
+  onTicker({chg:res.chg,high:res.high,low:res.low,vol:res.vol});
+  // tape: honest snapshot row, never disguised as a trade
+  if(S.pollCount===1&&S.tradeCount===0)tapeEl.innerHTML='';
+  var row=document.createElement('div'); row.className='row';
+  row.innerHTML='<span class="tm">'+nowStr()+'</span><span style="color:var(--orange)">REST 快照 '+fp(price)+'</span><span>'+res.label+'</span>';
+  tapeEl.prepend(row); while(tapeEl.children.length>42)tapeEl.removeChild(tapeEl.lastChild);
+  $('tickCount').textContent='轮询次数 '+S.pollCount+' · '+res.label+' · 非逐笔';
+  drawTickSpark();
+  computeSignal(true);
+}
+function pollRestOnce(){
+  if(S.mode==='ws')return;
+  if(S.restBusy){
+    // 卡死自检：单轮竞速有 6 秒硬超时，超过 12 秒仍未结束视为状态机卡死，强制复位再试
+    if(Date.now()-S.pollStartedAt<12000)return;
+    log('上一轮 REST 轮询超时未结束，强制复位后重试…','warn');
+    S.restBusy=false;
+  }
+  S.restBusy=true; S.pollStartedAt=Date.now();
+  tryRestChain().then(function(res){
+    S.restBusy=false; var was=S.mode, prevSrc=S.source;
+    S.restFailures=0;
+    handleRestSnapshot(res);
+    if(was!=='rest'){ setConnPoll(res.label); log('REST 轮询备线已接通：'+res.label+' · 现价 '+fp(res.price)+'（每 5 秒更新，WS 恢复后自动切回 LIVE）。','ok'); }
+    else if(prevSrc!==res.label){ setConnPoll(res.label); log('REST 轮询来源切换为 '+res.label+'。','warn'); }
+    if(S.pollCount===1||S.pollCount%12===0){ loadCandles(); loadFunding(); }
+  }).catch(function(){
+    S.restBusy=false; S.restFailures++;
+    if(S.restFailures===1)log('REST 轮询八路暂均不可达，继续每 5 秒并行重试（不填假数据）…','warn');
+    if(S.restFailures>=2&&S.price===null){ setConnOff('WS + REST 均不可达'); $('errorBox').classList.add('show'); $('errorText').textContent=' WebSocket 与 REST 八路（Binance / Vision / OKX / Bybit / Coinbase / Kraken / Bitstamp / CoinGecko）当前均无法连接。备线仍在每 5 秒并行重试、单请求 4.5 秒超时不会卡死，网络恢复即自动出价；也可点「重新连接」立即重试。本页不会用模拟数字填充。'; }
+  });
+}
+function startRestPolling(){
+  if(S.restTimer)return;
+  // 立即切到橙色 POLLING 待接通状态，不让顶部还挂着绿色的 CONNECTING/LIVE 样式误导客户
+  if(S.mode!=='rest'){
+    $('connPill').textContent='● POLLING · REST 接入中';
+    $('connPill').className='pill live poll';
+    $('liveDot').className='dot poll';
+    $('streamInfo').textContent='REST POLLING · 接入中 · 5s';
+    $('pollBanner').style.display='block';
+    $('pollBannerText').textContent='WebSocket 不可达，REST 备线正在接入（每 5 秒拉取真实行情）；接通后顶部会显示实际来源，接通前不显示任何价格。';
+  }
+  log('启动 REST 轮询备线：每 5 秒拉取真实行情…','sys');
+  pollRestOnce();
+  S.restTimer=setInterval(pollRestOnce,5000);
+  if(!S.wsRetryTimer){ S.wsRetryTimer=setInterval(function(){ if(S.mode==='rest'||S.mode==='off'){ if(S.wsAttempting&&(!S.ws||S.ws.readyState>=2))S.wsAttempting=false; log('轮询/离线状态下重试 WebSocket 主线…','sys'); startStreams(); } },40000); }
+}
+function stopRestPolling(){
+  if(S.restTimer){ clearInterval(S.restTimer); S.restTimer=null; }
+}
+function connectBinance(url,label,next){
+  var ws;try{ws=new WebSocket(url+'/ws/btcusdt@trade/btcusdt@kline_15m/btcusdt@miniTicker');}catch(e){next();return;}
+  S.ws=ws;var opened=false,proceeded=false;
+  function proceed(){if(proceeded)return;proceeded=true;next();}
+  var guard=setTimeout(function(){if(!opened){try{ws.close();}catch(e){}proceed();}},6000);
+  ws.onopen=function(){opened=true;clearTimeout(guard);stopRestPolling();setConnLive(label);log('实时流已连接：'+label+'（逐笔成交 + 15m K线 + 24h 行情）。','ok');loadCandles();};
+  ws.onmessage=function(ev){try{var m=JSON.parse(ev.data);var d=m.data||m;
+    if(d.e==='trade'){onTrade(parseFloat(d.p),parseFloat(d.q),d.m?'SELL':'BUY',d.T);}
+    else if(d.e==='kline'){var k=d.k;onKline15(normC(parseFloat(k.o),parseFloat(k.h),parseFloat(k.l),parseFloat(k.c),parseFloat(k.v),k.t));}
+    else if(d.e==='24hrMiniTicker'){onTicker({chg:S.price?((parseFloat(d.c)-parseFloat(d.o))/parseFloat(d.o)*100):null,high:parseFloat(d.h),low:parseFloat(d.l),vol:parseFloat(d.v)});}
+  }catch(e){}};
+  ws.onerror=function(){};
+  ws.onclose=function(){if(S.ws===ws){if(opened){S.wsAttempting=false;log(label+' 断开，尝试下一条线路…','warn');setTimeout(proceed,1200);}else proceed();}};
+  S.wsKind='binance';
+}
+function connectBybit(){
+  var ws;try{ws=new WebSocket('wss://stream.bybit.com/v5/public/linear');}catch(e){allFailed();return;}
+  S.ws=ws;S.wsKind='bybit';var opened=false,failed=false;
+  function failOnce(){if(failed)return;failed=true;allFailed();}
+  var guard=setTimeout(function(){if(!opened){try{ws.close();}catch(e){}failOnce();}},7000);
+  ws.onopen=function(){opened=true;clearTimeout(guard);ws.send(JSON.stringify({op:'subscribe',args:['publicTrade.BTCUSDT','kline.15.BTCUSDT','tickers.BTCUSDT']}));stopRestPolling();setConnLive('Bybit');log('实时流已连接：Bybit（备用线 · 逐笔成交 + 15m K线）。','ok');loadCandles();};
+  ws.onmessage=function(ev){try{var m=JSON.parse(ev.data);
+    if(m.topic==='publicTrade.BTCUSDT'&&m.data){m.data.forEach(function(t){onTrade(parseFloat(t.p),parseFloat(t.v),t.S==='Buy'?'BUY':'SELL',parseInt(t.T));});}
+    else if(m.topic==='kline.15.BTCUSDT'&&m.data&&m.data[0]){var k=m.data[0];onKline15(normC(parseFloat(k.open),parseFloat(k.high),parseFloat(k.low),parseFloat(k.close),parseFloat(k.volume),parseInt(k.start)));}
+    else if(m.topic==='tickers.BTCUSDT'&&m.data){var t=m.data;onTicker({chg:t.price24hPcnt!==undefined?parseFloat(t.price24hPcnt)*100:null,high:parseFloat(t.highPrice24h),low:parseFloat(t.lowPrice24h),vol:parseFloat(t.volume24h)});if(t.fundingRate!==undefined&&S.fundingSrc!=='OKX 永续'){S.fundingPct=parseFloat(t.fundingRate)*100;S.fundingSrc='Bybit 永续';}}
+    S.lastMsgAt=Date.now();
+  }catch(e){}};
+  ws.onerror=function(){};
+  ws.onclose=function(){if(S.ws===ws){S.wsAttempting=false;if(opened){log('Bybit 备用线断开，切 REST 轮询备线…','warn');allFailed();}else failOnce();}};
+}
+function allFailed(){
+  S.wsAttempting=false;
+  log('WebSocket 三线均不可达，自动降级 REST 轮询备线（每 5 秒真实行情）。','warn');
+  if(S.price===null){ $('errorBox').classList.add('show'); $('errorText').textContent=' WebSocket 三线暂不可达，正在用 REST 轮询备线拉取真实行情；若 REST 成功此提示会自动消失并在顶部显示 POLLING 与来源。'; }
+  startRestPolling();
+}
+function startStreams(){
+  if(S.mode==='ws')return;
+  if(S.wsAttempting)return;
+  S.wsAttempting=true;
+  if(S.ws){try{S.ws.onclose=null;S.ws.close();}catch(e){}S.ws=null;}
+  connectBinance('wss://stream.binance.com:9443','Binance',function(){
+    connectBinance('wss://data-stream.binance.vision','Binance Vision',function(){connectBybit();});
+  });
+}
+$('retryBtn').addEventListener('click',function(){log('手动重连：先试 REST 立即出价，再试 WebSocket…','sys');S.wsAttempting=false;pollRestOnce();if(!S.restTimer)startRestPolling();startStreams();loadCandles();loadFunding();});
+
+/* ---------- boot ---------- */
+log('终端启动：优先 WebSocket 实时流（Binance 主线 → Vision 镜像 → Bybit 备用），全断自动降级 REST 轮询备线（5 秒）。','sys');
+log('口径载入：信号 = 1h 结构突破 + 1h 量比 ≥1.50× + |费率| < 0.050%；15m 仅辅助视图。止损挂交易所，止盈不挂单。','sys');
+updateLedger(); neuralSize(); setTimeout(neuralSize,600); requestAnimationFrame(neuralLoop);
+loadCandles(); loadFunding(); startStreams();
+/* watchdog: 浏览器通道（Safari/隐私中继等）若让 WS 长时间挂起、无价无成交，9 秒后主动开 REST 备线保证客户打开就能看到 */
+setTimeout(function(){ if(S.mode!=='ws'&&S.price===null){ log('9 秒内 WebSocket 未出价，主动启动 REST 轮询备线…','warn'); startRestPolling(); } },9000);
+/* WS 存活检测：BTCUSDT 逐笔流正常时消息不断；20 秒无消息 = 僵死连接（系统静默杀套接字时没有 close 事件），主动拆掉重连并先用 REST 出价 */
+setInterval(function(){
+  if(S.mode==='ws'&&S.lastMsgAt&&Date.now()-S.lastMsgAt>20000){
+    log('实时流 20 秒无消息（疑似僵死连接），主动重连并切 REST 备线出价…','warn');
+    if(S.ws){try{S.ws.onclose=null;S.ws.close();}catch(e){}S.ws=null;}
+    S.wsAttempting=false; S.connected=false; S.mode='off';
+    startRestPolling(); startStreams();
+  }
+},5000);
+/* 页面被系统挂起后恢复可见 / 网络恢复事件：立即自检，僵死 WS 直接拆掉、REST 立即补一轮，不等下一周期 */
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState!=='visible')return;
+  if(S.mode==='ws'&&S.lastMsgAt&&Date.now()-S.lastMsgAt>15000){
+    if(S.ws){try{S.ws.onclose=null;S.ws.close();}catch(e){}S.ws=null;}
+    S.wsAttempting=false; S.connected=false; S.mode='off';
+  }
+  if(S.mode!=='ws'){ pollRestOnce(); if(!S.restTimer)startRestPolling(); startStreams(); }
+});
+window.addEventListener('online',function(){ log('浏览器报告网络恢复，立即重连…','sys'); if(S.mode!=='ws'){ pollRestOnce(); if(!S.restTimer)startRestPolling(); startStreams(); } });
+setInterval(loadCandles,60000);
+setInterval(loadFunding,45000);
+setInterval(function(){ if(S.mode!=='rest')drawTickSpark(); renderFlow(); },5000);
+})();
+</script>
+</body>
+</html>
